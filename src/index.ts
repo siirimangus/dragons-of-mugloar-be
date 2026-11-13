@@ -28,16 +28,16 @@ async function main(): Promise<number> {
   const logger = createConsoleLogger(config.logLevel);
   const controller = new AbortController();
   process.once('SIGINT', () => {
-    logger.warn('SIGINT received, finishing the current turn');
+    logger.warn('SIGINT received, finishing the current turn (press Ctrl-C again to force quit)');
     controller.abort();
   });
 
   try {
     const summary = await createApp({ config, logger }).run(controller.signal);
     printSummary(summary);
-    return 0;
+    return summary.endedBy === 'aborted' ? 130 : 0;
   } catch (error) {
-    logger.error('Run failed', { error: error instanceof Error ? error.message : String(error) });
+    logger.error('Fatal error', { error: error instanceof Error ? error.message : String(error) });
     return 1;
   }
 }
