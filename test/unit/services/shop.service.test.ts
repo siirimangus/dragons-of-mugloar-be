@@ -1,0 +1,55 @@
+import { describe, expect, it } from 'vitest';
+import { chooseShopAction } from '../../../src/services/shop.service.js';
+import { makeContext, makeState } from '../../support/builders.js';
+import { TEST_TUNING } from '../../support/test-tuning.js';
+
+const tuning = { ...TEST_TUNING, upgradePriority: ['cs', 'ch'] };
+
+describe('chooseShopAction', () => {
+  it('buys a healing potion when lives are at the threshold and gold covers it', () => {
+    const ctx = makeContext({ state: makeState({ lives: 2, gold: 60 }) });
+    expect(chooseShopAction(ctx, tuning)).toEqual({ kind: 'buy', itemId: 'hpot' });
+  });
+
+  it('does not heal when gold is too low', () => {
+    const ctx = makeContext({ state: makeState({ lives: 1, gold: 40 }) });
+    expect(chooseShopAction(ctx, tuning)).toBeNull();
+  });
+
+  it('does not heal when lives are above the threshold', () => {
+    const ctx = makeContext({ state: makeState({ lives: 3, gold: 60 }) });
+    expect(chooseShopAction(ctx, tuning)).toBeNull();
+  });
+
+  it('prefers healing over upgrading', () => {
+    const ctx = makeContext({ state: makeState({ lives: 1, gold: 500 }) });
+    expect(chooseShopAction(ctx, tuning)).toEqual({ kind: 'buy', itemId: 'hpot' });
+  });
+
+  it('buys the next upgrade when gold covers cost plus reserve', () => {
+    const ctx = makeContext({ state: makeState({ lives: 3, gold: 150 }) });
+    expect(chooseShopAction(ctx, tuning)).toEqual({ kind: 'buy', itemId: 'cs' });
+  });
+
+  it('keeps saving when gold does not cover cost plus reserve', () => {
+    const ctx = makeContext({ state: makeState({ lives: 3, gold: 149 }) });
+    expect(chooseShopAction(ctx, tuning)).toBeNull();
+  });
+
+  it('skips upgrades already purchased', () => {
+    const ctx = makeContext({ state: makeState({ lives: 3, gold: 400 }), purchased: ['cs'] });
+    expect(chooseShopAction(ctx, tuning)).toEqual({ kind: 'buy', itemId: 'ch' });
+  });
+
+  it('waits for the next upgrade instead of buying a later cheaper one', () => {
+    const cheapSecond = { ...TEST_TUNING, upgradePriority: ['ch', 'cs'] };
+    const ctx = makeContext({ state: makeState({ lives: 3, gold: 200 }) });
+    expect(chooseShopAction(ctx, cheapSecond)).toBeNull();
+  });
+
+  it('ignores upgrade ids the shop does not sell', () => {
+    const unknownFirst = { ...TEST_TUNING, upgradePriority: ['nope', 'cs'] };
+    const ctx = makeContext({ state: makeState({ lives: 3, gold: 150 }) });
+    expect(chooseShopAction(ctx, unknownFirst)).toEqual({ kind: 'buy', itemId: 'cs' });
+  });
+});

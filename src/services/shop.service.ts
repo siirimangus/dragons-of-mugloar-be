@@ -1,0 +1,21 @@
+import type { Tuning } from '../config/tuning.js';
+import type { Action, StrategyContext } from '../models/types.js';
+
+export function chooseShopAction(ctx: StrategyContext, tuning: Tuning): Action | null {
+  const { state, shop, purchased } = ctx;
+
+  const healItem = shop.find((item) => item.id === tuning.healItemId);
+  if (healItem && state.lives <= tuning.healThreshold && state.gold >= healItem.cost) {
+    return { kind: 'buy', itemId: healItem.id };
+  }
+
+  const nextUpgrade = tuning.upgradePriority
+    .filter((id) => !purchased.includes(id))
+    .map((id) => shop.find((item) => item.id === id))
+    .find((item) => item !== undefined);
+  if (nextUpgrade && state.gold - nextUpgrade.cost >= tuning.reserveGold) {
+    return { kind: 'buy', itemId: nextUpgrade.id };
+  }
+
+  return null;
+}
