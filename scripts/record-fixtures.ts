@@ -48,7 +48,8 @@ const encrypted: Record<1 | 2, AdJson[]> = { 1: [], 2: [] };
 let savedPlain = false;
 let savedSolve = false;
 
-for (let turn = 0; turn < 400 && (encrypted[1].length < 3 || encrypted[2].length < 3); turn++) {
+for (let turn = 0; turn < 400; turn++) {
+  if (encrypted[1].length >= 3 && (encrypted[2].length >= 3 || turn >= 150)) break;
   const ads = await call<AdJson[]>('GET', `/${game.gameId}/messages`);
   const plain = ads.filter((ad) => ad.encrypted === null);
   if (!savedPlain && plain.length > 0) {
@@ -56,8 +57,9 @@ for (let turn = 0; turn < 400 && (encrypted[1].length < 3 || encrypted[2].length
     savedPlain = true;
   }
   for (const ad of ads) {
-    if (ad.encrypted !== null && encrypted[ad.encrypted].length < 3)
-      encrypted[ad.encrypted].push(ad);
+    if (ad.encrypted === null) continue;
+    const bucket = encrypted[ad.encrypted];
+    if (bucket.length < 3 && !bucket.some((x) => x.adId === ad.adId)) bucket.push(ad);
   }
   const target = ads[0];
   if (!target) throw new Error('The API returned no ads');

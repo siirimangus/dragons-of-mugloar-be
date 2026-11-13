@@ -3,11 +3,8 @@ import type { GameState, PurchaseResult, RawAd, ShopItem, SolveResult } from '..
 import { ValidationError } from './errors.js';
 
 const count = z.number().int();
-const numericString = z
-  .string()
-  .regex(/^\d+$/)
-  .transform((value) => Number(value));
-const flexibleNumber = z.union([z.number().nonnegative(), numericString]);
+const numericString = z.string().regex(/^\d+$/).transform(Number).pipe(z.number().int().safe());
+const flexibleNumber = z.union([z.number().int().nonnegative(), numericString]);
 const booleanLike = z.union([
   z.boolean(),
   z.enum(['true', 'false']).transform((value) => value === 'true'),

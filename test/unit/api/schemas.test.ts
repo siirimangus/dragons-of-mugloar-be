@@ -100,12 +100,57 @@ describe('parseMessages', () => {
   it('rejects a non-array body', () => {
     expect(() => parseMessages({ ads: [] })).toThrow(ValidationError);
   });
+
+  it('strips unknown extra fields', () => {
+    const ads = parseMessages([
+      {
+        adId: 'a',
+        message: 'm',
+        reward: 1,
+        expiresIn: 3,
+        encrypted: null,
+        probability: 'x',
+        extra: 'y',
+      },
+    ]);
+    expect(ads[0]).not.toHaveProperty('extra');
+  });
+
+  it('parses an empty array to an empty list', () => {
+    expect(parseMessages([])).toEqual([]);
+  });
+
+  it('rejects null and undefined bodies with a descriptive message', () => {
+    expect(() => parseMessages(null)).toThrow(ValidationError);
+    expect(() => parseMessages(null)).toThrow(/messages/);
+    expect(() => parseMessages(undefined)).toThrow(/messages/);
+  });
+
+  it.each([['-1'], ['1.5'], [-3], [1.5], ['1'.repeat(30)]])('rejects reward %j', (reward) => {
+    expect(() =>
+      parseMessages([
+        { adId: 'a', message: 'm', reward, expiresIn: 3, encrypted: null, probability: 'x' },
+      ]),
+    ).toThrow(ValidationError);
+  });
+
+  it('rejects encrypted given as a string', () => {
+    expect(() =>
+      parseMessages([
+        { adId: 'a', message: 'm', reward: 1, expiresIn: 3, encrypted: '1', probability: 'x' },
+      ]),
+    ).toThrow(ValidationError);
+  });
 });
 
 describe('parseShop', () => {
   it('parses a real response', () => {
     const items = parseShop(loadFixture('shop.json'));
     expect(items.some((item) => item.id === 'hpot' && item.cost === 50)).toBe(true);
+  });
+
+  it('parses an empty array to an empty list', () => {
+    expect(parseShop([])).toEqual([]);
   });
 
   it('rejects an item without a cost', () => {
@@ -118,6 +163,19 @@ describe('parseSolveResult', () => {
     const result = parseSolveResult(loadFixture('solve-result.json'));
     expect(typeof result.success).toBe('boolean');
     expect(typeof result.message).toBe('string');
+  });
+
+  it('intentionally accepts negative score, gold and lives', () => {
+    const result = parseSolveResult({
+      success: false,
+      lives: -1,
+      gold: -5,
+      score: -10,
+      highScore: 0,
+      turn: 1,
+      message: 'x',
+    });
+    expect(result).toMatchObject({ lives: -1, gold: -5, score: -10 });
   });
 
   it('rejects a missing success flag', () => {
