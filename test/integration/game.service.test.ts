@@ -197,6 +197,19 @@ describe('GameService', () => {
     expect(warn?.meta).toMatchObject({ adId: 'bad-ad' });
   });
 
+  it('never skips a turn because of an encoded ad id (live API 400s on those)', async () => {
+    const api = new FakeDragonsApi({ seed: 42 });
+    const { logger, entries } = capturingLogger();
+    const service = new GameService({
+      api,
+      strategy: new ExpectedValueStrategy(TEST_TUNING),
+      logger,
+      options: { maxConsecutiveFailures: 3, maxTurns: 100 },
+    });
+    await service.run();
+    expect(entries.filter((e) => e.message === 'Turn skipped')).toEqual([]);
+  });
+
   it('logs an end-of-run summary and a progress line every 25 turns', async () => {
     const api = new FakeDragonsApi({ successRateOverride: 1 });
     const { logger, entries } = capturingLogger();

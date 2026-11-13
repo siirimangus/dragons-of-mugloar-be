@@ -38,18 +38,21 @@ describe('decodeAd', () => {
     const ad = decodeAd(
       rawAd({
         encrypted: 1,
+        adId: 'VzF5cmNycGk=',
         message: Buffer.from('Help Someone to fix their wagon').toString('base64'),
         probability: 'Umlza3k=',
       }),
     );
+    expect(ad.adId).toBe('W1yrcrpi');
     expect(ad.message).toBe('Help Someone to fix their wagon');
     expect(ad.probability).toBe('Risky');
   });
 
   it('decodes ROT13 message and probability', () => {
     const ad = decodeAd(
-      rawAd({ encrypted: 2, message: 'Uryc Fbzrbar', probability: 'Vzcbffvoyr' }),
+      rawAd({ encrypted: 2, adId: 'W1yrcrpi', message: 'Uryc Fbzrbar', probability: 'Vzcbffvoyr' }),
     );
+    expect(ad.adId).toBe('J1lepecv');
     expect(ad.message).toBe('Help Someone');
     expect(ad.probability).toBe('Impossible');
   });
@@ -58,6 +61,7 @@ describe('decodeAd', () => {
     for (const name of ['messages-encrypted-1.json', 'messages-encrypted-2.synthetic.json']) {
       const ads = parseMessages(loadFixture(name)).map(decodeAd);
       for (const ad of ads) {
+        expect(ad.adId).toMatch(name === 'messages-encrypted-1.json' ? /^[A-Za-z0-9]{8}$/ : /^.+$/);
         expect(Object.keys(DEFAULT_TUNING.labelProbability)).toContain(ad.probability);
       }
     }
@@ -65,6 +69,21 @@ describe('decodeAd', () => {
 });
 
 describe('decodeAds', () => {
+  it('keeps the id of plain ads', () => {
+    expect(decodeAd(rawAd({ adId: 'Plain123' })).adId).toBe('Plain123');
+  });
+
+  it('drops an encrypted ad whose adId is not valid Base64', () => {
+    const { logger, warnings } = capturingLogger();
+    const message = Buffer.from('Help Someone').toString('base64');
+    const ads = decodeAds(
+      [rawAd({ adId: 'not base64!', encrypted: 1, message, probability: 'Umlza3k=' })],
+      logger,
+    );
+    expect(ads).toEqual([]);
+    expect(warnings[0]?.meta).toEqual({ adId: 'not base64!', reason: expect.any(String) });
+  });
+
   it('drops undecodable ads with a warning instead of throwing', () => {
     const { logger, warnings } = capturingLogger();
     const ads = decodeAds(
@@ -114,7 +133,9 @@ describe('isTrap', () => {
 
   it('flags a trap that arrived Base64-encrypted', () => {
     const message = Buffer.from('Steal super awesome diamond pot from X').toString('base64');
-    const ad = decodeAd(rawAd({ encrypted: 1, message, probability: 'U3VyZSB0aGluZw==' }));
+    const ad = decodeAd(
+      rawAd({ encrypted: 1, adId: 'VzF5cmNycGk=', message, probability: 'U3VyZSB0aGluZw==' }),
+    );
     expect(isTrap(ad, TEST_TUNING)).toBe(true);
   });
 

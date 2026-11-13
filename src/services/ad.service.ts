@@ -7,7 +7,8 @@ export type ScoredAd = { readonly ad: Ad; readonly score: number };
 
 export function decodeAd(raw: RawAd): Ad {
   return {
-    adId: raw.adId,
+    // The live API answers 400 when an encrypted ad is solved with its encoded id.
+    adId: decodeField(raw.adId, raw.encrypted),
     message: decodeField(raw.message, raw.encrypted),
     reward: raw.reward,
     expiresIn: raw.expiresIn,

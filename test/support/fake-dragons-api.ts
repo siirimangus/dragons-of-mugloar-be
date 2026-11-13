@@ -49,7 +49,9 @@ function mulberry32(seed: number): () => number {
   };
 }
 
-type Hidden = { readonly successRate: number; readonly isTrap: boolean };
+type Hidden = { readonly successRate: number; readonly isTrap: boolean; readonly reward: number };
+
+const ID_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
 
 export class FakeDragonsApi implements DragonsApi {
   /** Successful purchases only. */
@@ -69,12 +71,14 @@ export class FakeDragonsApi implements DragonsApi {
   private state: GameState;
   private ads: RawAd[] = [];
   private readonly hidden = new Map<string, Hidden>();
-  private adCounter = 0;
+  private readonly idRandom: () => number;
+  private readonly usedIds = new Set<string>();
 
   constructor(options: FakeOptions = {}) {
     const seed = options.seed ?? 1;
     this.adRandom = mulberry32(seed);
     this.outcomeRandom = mulberry32((seed ^ 0x9e3779b9) >>> 0);
+    this.idRandom = mulberry32((seed ^ 0x51ed270b) >>> 0);
     this.overrideRate = options.successRateOverride;
     this.state = {
       gameId: 'fake-game',
@@ -111,9 +115,15 @@ export class FakeDragonsApi implements DragonsApi {
   async solve(gameId: string, adId: string): Promise<SolveResult> {
     this.assertGame(gameId);
     this.assertAlive();
-    const ad = this.ads.find((candidate) => candidate.adId === adId);
     const hidden = this.hidden.get(adId);
-    if (!ad || !hidden) throw new ApiError('Ad not found', { status: 404, retryable: false });
+    if (!hidden) {
+      // Like the live API: an encoded id of an encrypted ad is a malformed request, not a missing ad.
+      const encodedMatch = this.ads.some((candidate) => candidate.adId === adId);
+      throw encodedMatch
+        ? new ApiError('Bad Request', { status: 400, retryable: false })
+        : new ApiError('Ad not found', { status: 404, retryable: false });
+    }
+    const ad = { reward: hidden.reward };
 
     // Trap success rate is 0: assumes real traps always fail.
     const success = this.outcomeRandom() < hidden.successRate;
@@ -192,7 +202,7 @@ export class FakeDragonsApi implements DragonsApi {
   }
 
   private addAd(isTrap: boolean): void {
-    const adId = `ad-${this.adCounter++}`;
+    const adId = this.newTrueId();
     const label = isTrap
       ? 'Piece of cake'
       : (LABELS[Math.floor(this.adRandom() * LABELS.length)] ?? 'Hmmm....');
@@ -212,7 +222,7 @@ export class FakeDragonsApi implements DragonsApi {
           : value;
 
     this.ads.push({
-      adId,
+      adId: encode(adId),
       message: encode(message),
       reward,
       expiresIn: 7,
@@ -222,6 +232,20 @@ export class FakeDragonsApi implements DragonsApi {
     this.hidden.set(adId, {
       successRate: isTrap ? 0 : (this.overrideRate ?? LABEL_SUCCESS[label] ?? 0.5),
       isTrap,
+      reward,
     });
+  }
+
+  /** 8 unique alphanumeric characters, like the ids the live API accepts. */
+  private newTrueId(): string {
+    for (;;) {
+      let id = '';
+      for (let i = 0; i < 8; i++)
+        id += ID_CHARS[Math.floor(this.idRandom() * ID_CHARS.length)] ?? 'A';
+      if (!this.usedIds.has(id)) {
+        this.usedIds.add(id);
+        return id;
+      }
+    }
   }
 }

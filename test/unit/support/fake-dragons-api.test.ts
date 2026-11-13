@@ -27,7 +27,7 @@ describe('FakeDragonsApi', () => {
     await api.startGame();
     const ad = (await api.getMessages('fake-game'))[0];
     if (!ad) throw new Error('expected at least one ad');
-    const result = await api.solve('fake-game', ad.adId);
+    const result = await api.solve('fake-game', trueId(ad));
     expect(result.success).toBe(true);
     expect(result.gold).toBe(ad.reward);
     expect(result.score).toBe(ad.reward);
@@ -39,9 +39,30 @@ describe('FakeDragonsApi', () => {
     await api.startGame();
     const ad = (await api.getMessages('fake-game'))[0];
     if (!ad) throw new Error('expected at least one ad');
-    const result = await api.solve('fake-game', ad.adId);
+    const result = await api.solve('fake-game', trueId(ad));
     expect(result.success).toBe(false);
     expect(result.lives).toBe(2);
+  });
+
+  it('rejects the encoded id of an encrypted ad with a 400, like the live API', async () => {
+    const api = await startedFake({ seed: 3, successRateOverride: 1 });
+    const encrypted = (await api.getMessages('fake-game')).find((ad) => ad.encrypted !== null);
+    if (!encrypted) throw new Error('expected an encrypted ad');
+    expect(encrypted.adId).not.toBe(trueId(encrypted));
+    const error = await api.solve('fake-game', encrypted.adId).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error).toMatchObject({ message: 'Bad Request', status: 400, retryable: false });
+    expect(api.snapshot().turn).toBe(0);
+    const result = await api.solve('fake-game', trueId(encrypted));
+    expect(result.turn).toBe(1);
+  });
+
+  it('encodes the public id with the same scheme as the other fields', async () => {
+    const api = await startedFake({ seed: 11 });
+    for (const ad of await api.getMessages('fake-game')) {
+      if (ad.encrypted === 1) expect(ad.adId).toMatch(/^[A-Za-z0-9+/]{11}=$/);
+      if (ad.encrypted === null) expect(ad.adId).toMatch(/^[A-Za-z0-9]{8}$/);
+    }
   });
 
   it('rejects unknown ads with a non-retryable 404', async () => {
@@ -59,6 +80,7 @@ describe('FakeDragonsApi', () => {
     expect(result).toMatchObject({ shoppingSuccess: false, gold: 0, turn: 1 });
   });
 
+  const trueId = (ad: RawAd): string => decodeAd(ad).adId;
   const isTrapRaw = (ad: RawAd): boolean => /super awesome/.test(decodeAd(ad).message);
 
   async function startedFake(options: FakeOptions = {}): Promise<FakeDragonsApi> {
@@ -77,12 +99,12 @@ describe('FakeDragonsApi', () => {
     it('stops accepting solve and buy once lives hit 0 and never goes negative', async () => {
       const api = await startedFake({ seed: 1, successRateOverride: 0, lives: 1 });
       const ad = await firstNonTrap(api);
-      const result = await api.solve('fake-game', ad.adId);
+      const result = await api.solve('fake-game', trueId(ad));
       expect(result.lives).toBe(0);
 
       const next = (await api.getMessages('fake-game'))[0];
       if (!next) throw new Error('expected an ad');
-      const solveError = await api.solve('fake-game', next.adId).catch((e: unknown) => e);
+      const solveError = await api.solve('fake-game', trueId(next)).catch((e: unknown) => e);
       expect(solveError).toBeInstanceOf(ApiError);
       expect(solveError).toMatchObject({ status: 400, retryable: false });
       const buyError = await api.buy('fake-game', 'hpot').catch((e: unknown) => e);
@@ -93,7 +115,7 @@ describe('FakeDragonsApi', () => {
 
     it('keeps getMessages and getShop working after game over', async () => {
       const api = await startedFake({ successRateOverride: 0, lives: 1 });
-      await api.solve('fake-game', (await firstNonTrap(api)).adId);
+      await api.solve('fake-game', trueId(await firstNonTrap(api)));
       expect((await api.getMessages('fake-game')).length).toBe(7);
       expect((await api.getShop('fake-game')).length).toBe(3);
     });
@@ -114,23 +136,26 @@ describe('FakeDragonsApi', () => {
       expect(kinds.has(2)).toBe(true);
     });
 
-    it('produces unique ad ids across refreshes', async () => {
+    it('produces unique 8-character decoded ad ids across refreshes', async () => {
       const api = await startedFake({ successRateOverride: 1 });
       const seen = new Set<string>();
       for (let i = 0; i < 4; i++) {
         const ads = await api.getMessages('fake-game');
         for (const ad of ads) {
-          expect(seen.has(ad.adId)).toBe(false);
-          seen.add(ad.adId);
+          const id = trueId(ad);
+          expect(id).toMatch(/^[A-Za-z0-9]{8}$/);
+          expect(seen.has(id)).toBe(false);
+          seen.add(id);
         }
-        await api.solve('fake-game', (await firstNonTrap(api)).adId);
+        await api.solve('fake-game', trueId(await firstNonTrap(api)));
       }
     });
 
     it('is deterministic for a solve-then-getMessages sequence', async () => {
       const run = async (): Promise<RawAd[]> => {
         const api = await startedFake({ seed: 5 });
-        await api.solve('fake-game', (await api.getMessages('fake-game'))[0]?.adId ?? '');
+        const first = (await api.getMessages('fake-game'))[0];
+        await api.solve('fake-game', first ? trueId(first) : '');
         return api.getMessages('fake-game');
       };
       expect(await run()).toEqual(await run());
@@ -139,7 +164,7 @@ describe('FakeDragonsApi', () => {
     it('does not let solve outcomes influence generated ads', async () => {
       const a = await startedFake({ seed: 4, successRateOverride: 0 });
       const b = await startedFake({ seed: 4, successRateOverride: 1 });
-      const adId = (await firstNonTrap(a)).adId;
+      const adId = trueId(await firstNonTrap(a));
       await a.solve('fake-game', adId);
       await b.solve('fake-game', adId);
       expect(await a.getMessages('fake-game')).toEqual(await b.getMessages('fake-game'));
@@ -150,7 +175,7 @@ describe('FakeDragonsApi', () => {
     async function richFake(): Promise<FakeDragonsApi> {
       const api = await startedFake({ successRateOverride: 1 });
       while (api.snapshot().gold < 700) {
-        await api.solve('fake-game', (await firstNonTrap(api)).adId);
+        await api.solve('fake-game', trueId(await firstNonTrap(api)));
       }
       return api;
     }
@@ -192,7 +217,7 @@ describe('FakeDragonsApi', () => {
     const api = await startedFake({ seed: 2, successRateOverride: 1 });
     const trap = (await api.getMessages('fake-game')).find(isTrapRaw);
     if (!trap) throw new Error('expected a trap ad');
-    const result = await api.solve('fake-game', trap.adId);
+    const result = await api.solve('fake-game', trueId(trap));
     expect(result.success).toBe(false);
     expect(api.trapsSolved).toBe(1);
   });
@@ -202,7 +227,7 @@ describe('FakeDragonsApi', () => {
     const errors = await Promise.all([
       api.getMessages('other').catch((e: unknown) => e),
       api.getShop('other').catch((e: unknown) => e),
-      api.solve('other', 'ad-0').catch((e: unknown) => e),
+      api.solve('other', 'ABCDEFGH').catch((e: unknown) => e),
       api.buy('other', 'hpot').catch((e: unknown) => e),
     ]);
     for (const error of errors) {
