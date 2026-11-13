@@ -104,7 +104,13 @@ export class GameService {
             consecutiveFailures,
             ...ctx.attempt,
           });
-          if (consecutiveFailures >= this.options.maxConsecutiveFailures) throw error;
+          if (consecutiveFailures >= this.options.maxConsecutiveFailures) {
+            if (!(error instanceof NoActionError)) throw error;
+            // The state cannot change without an action: a legitimate dead end, not a crash.
+            this.logger.warn('Stalled: no safe action available', { consecutiveFailures });
+            endedBy = 'stalled';
+            break;
+          }
         }
       }
     } catch (error) {

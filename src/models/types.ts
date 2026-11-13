@@ -59,7 +59,7 @@ export type StrategyContext = {
   readonly attemptedItemIds: readonly string[];
 };
 
-export type EndReason = 'lives' | 'turn-limit' | 'aborted';
+export type EndReason = 'lives' | 'turn-limit' | 'aborted' | 'stalled';
 
 export type RunSummary = {
   readonly gameId: string;

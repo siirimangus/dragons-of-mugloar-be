@@ -11,6 +11,7 @@ function printSummary(summary: RunSummary): void {
   console.log(`  failed:     ${summary.failed}`);
   console.log(`  purchases:  ${summary.purchases} (${summary.goldSpent} gold)`);
   console.log(`  final gold: ${summary.finalGold}, lives: ${summary.finalLives}`);
+  if (summary.endedBy === 'stalled') console.log('  note: stalled (no safe action available)');
 }
 
 async function main(): Promise<number> {

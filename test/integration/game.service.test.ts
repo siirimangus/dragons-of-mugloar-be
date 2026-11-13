@@ -1,10 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ApiError } from '../../src/api/errors.js';
-import {
-  GameService,
-  NoActionError,
-  type GameServiceOptions,
-} from '../../src/services/game.service.js';
+import { GameService, type GameServiceOptions } from '../../src/services/game.service.js';
 import { ExpectedValueStrategy, type Strategy } from '../../src/services/strategy.js';
 import type { Action, RawAd } from '../../src/models/types.js';
 import { silentLogger, type Logger } from '../../src/utils/logger.js';
@@ -115,9 +111,10 @@ describe('GameService', () => {
     expect(api.purchases.filter((id) => id === 'hpot').length).toBeGreaterThan(1);
   });
 
-  it('OBSERVED: with only trap boards after the first and no gold, the bot gives up with NoActionError', async () => {
+  it('ends as stalled with a summary when no safe action exists and nothing is affordable', async () => {
     const api = new FakeDragonsApi({ seed: 7, trapBoardEvery: 1, startGold: 0 });
-    await expect(makeService(api, { maxTurns: 60 }).run()).rejects.toThrow(NoActionError);
+    const summary = await makeService(api, { maxTurns: 60 }).run();
+    expect(summary.endedBy).toBe('stalled');
     expect(api.trapsSolved).toBe(0);
   });
 
@@ -278,11 +275,10 @@ describe('GameService', () => {
     expect(spy).toHaveBeenCalledTimes(3);
   });
 
-  it('fails fast when the strategy keeps producing no action', async () => {
+  it('ends as stalled when the strategy keeps producing no action', async () => {
     const api = new FakeDragonsApi();
     const idle: Strategy = { chooseAction: () => null };
-    await expect(makeService(api, { maxConsecutiveFailures: 2 }, idle).run()).rejects.toThrow(
-      NoActionError,
-    );
+    const summary = await makeService(api, { maxConsecutiveFailures: 2 }, idle).run();
+    expect(summary).toMatchObject({ endedBy: 'stalled', turns: 0 });
   });
 });

@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { DragonsApi } from '../../src/api/dragons-api.js';
 import { ApiError } from '../../src/api/errors.js';
-import { NoActionError } from '../../src/services/game.service.js';
 import { TEST_TUNING } from '../support/test-tuning.js';
 import { createApp } from '../../src/app.js';
 import { loadConfig } from '../../src/config/env.js';
@@ -150,7 +149,7 @@ describe('createApp', () => {
       fetch: fetchFn,
       tuning: { ...TEST_TUNING, trapPatterns: [/.*/] },
     });
-    await expect(app.run()).rejects.toBeInstanceOf(NoActionError);
+    await expect(app.run()).resolves.toMatchObject({ endedBy: 'stalled' });
     expect(requests.some((r) => r.includes('/solve/'))).toBe(false);
   });
 
