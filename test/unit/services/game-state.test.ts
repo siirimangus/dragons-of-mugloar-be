@@ -45,4 +45,22 @@ describe('applyPurchase', () => {
     expect(next).toEqual({ ...state, lives: 2, gold: 50, level: 0, turn: 10 });
     expect(next.score).toBe(250);
   });
+
+  it('mirrors a failed purchase exactly as the API reported it', () => {
+    const state = makeState({ lives: 2, gold: 40, score: 80, turn: 5, level: 1 });
+    const next = applyPurchase(state, {
+      shoppingSuccess: false,
+      gold: 40,
+      lives: 2,
+      level: 1,
+      turn: 6,
+    });
+    expect(next).toEqual({ ...state, turn: 6 });
+  });
+
+  it('does not mutate the previous state', () => {
+    const state = makeState();
+    applyPurchase(state, { shoppingSuccess: true, gold: 1, lives: 1, level: 1, turn: 1 });
+    expect(state).toEqual(makeState());
+  });
 });
