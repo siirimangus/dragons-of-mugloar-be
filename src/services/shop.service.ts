@@ -10,6 +10,7 @@ export function chooseShopAction(ctx: StrategyContext, tuning: Tuning): Action |
   }
 
   const nextUpgrade = tuning.upgradePriority
+    // Attempted-but-failed purchases are intentionally never retried (avoids a loop that burns turns).
     .filter((id) => !purchased.includes(id))
     .map((id) => shop.find((item) => item.id === id))
     .find((item) => item !== undefined);

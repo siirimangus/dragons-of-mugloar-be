@@ -60,4 +60,9 @@ describe('ExpectedValueStrategy', () => {
     });
     expect(strategy.chooseAction(ctx)).toBeNull();
   });
+
+  it('returns the shop action even when there are no ads', () => {
+    const ctx = makeContext({ state: makeState({ lives: 3, gold: 150 }), ads: [] });
+    expect(strategy.chooseAction(ctx)).toEqual({ kind: 'buy', itemId: 'cs' });
+  });
 });

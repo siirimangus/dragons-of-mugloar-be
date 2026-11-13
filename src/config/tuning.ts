@@ -5,7 +5,7 @@ export type Tuning = {
   /** What losing a life is worth, in gold, when scoring an ad. */
   readonly lifeValue: number;
   readonly healItemId: string;
-  /** Buy a healing potion when lives are at or below this. */
+  /** Buy a healing potion when lives are at or below this. Must stay below the maximum number of lives, otherwise the bot buys a potion every turn at full health. */
   readonly healThreshold: number;
   /** Gold to keep after an upgrade so a healing potion stays affordable. */
   readonly reserveGold: number;

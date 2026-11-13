@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { chooseShopAction } from '../../../src/services/shop.service.js';
-import { makeContext, makeState } from '../../support/builders.js';
+import { SHOP, makeContext, makeState } from '../../support/builders.js';
 import { TEST_TUNING } from '../../support/test-tuning.js';
 
 const tuning = { ...TEST_TUNING, upgradePriority: ['cs', 'ch'] };
@@ -51,5 +51,37 @@ describe('chooseShopAction', () => {
     const unknownFirst = { ...TEST_TUNING, upgradePriority: ['nope', 'cs'] };
     const ctx = makeContext({ state: makeState({ lives: 3, gold: 150 }) });
     expect(chooseShopAction(ctx, unknownFirst)).toEqual({ kind: 'buy', itemId: 'cs' });
+  });
+
+  it('heals when gold exactly equals the potion cost', () => {
+    const ctx = makeContext({ state: makeState({ lives: 1, gold: 50 }) });
+    expect(chooseShopAction(ctx, tuning)).toEqual({ kind: 'buy', itemId: 'hpot' });
+  });
+
+  it('falls through to upgrades when the heal item is not in the shop', () => {
+    const shop = SHOP.filter((item) => item.id !== 'hpot');
+    const affordable = makeContext({ state: makeState({ lives: 1, gold: 150 }), shop });
+    expect(chooseShopAction(affordable, tuning)).toEqual({ kind: 'buy', itemId: 'cs' });
+    const poor = makeContext({ state: makeState({ lives: 1, gold: 100 }), shop });
+    expect(chooseShopAction(poor, tuning)).toBeNull();
+  });
+
+  it('still heals when the potion was purchased before (potions are repeatable)', () => {
+    const ctx = makeContext({ state: makeState({ lives: 1, gold: 60 }), purchased: ['hpot'] });
+    expect(chooseShopAction(ctx, tuning)).toEqual({ kind: 'buy', itemId: 'hpot' });
+  });
+
+  it('buys an upgrade at gold equal to cost when the reserve is zero', () => {
+    const noReserve = { ...tuning, reserveGold: 0 };
+    const ctx = makeContext({ state: makeState({ lives: 3, gold: 100 }) });
+    expect(chooseShopAction(ctx, noReserve)).toEqual({ kind: 'buy', itemId: 'cs' });
+  });
+
+  it('returns null when every upgrade is already purchased', () => {
+    const ctx = makeContext({
+      state: makeState({ lives: 3, gold: 1000 }),
+      purchased: ['cs', 'ch'],
+    });
+    expect(chooseShopAction(ctx, tuning)).toBeNull();
   });
 });
