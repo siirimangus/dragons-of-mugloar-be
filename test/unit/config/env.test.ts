@@ -6,8 +6,8 @@ describe('loadConfig', () => {
     expect(loadConfig({})).toEqual({
       apiBaseUrl: 'https://dragonsofmugloar.com/api/v2',
       httpTimeoutMs: 10_000,
-      retryAttempts: 3,
-      retryBaseDelayMs: 250,
+      retryAttempts: 5,
+      retryBaseDelayMs: 500,
       maxConsecutiveFailures: 5,
       maxTurns: 1000,
       logLevel: 'info',
@@ -72,7 +72,7 @@ describe('loadConfig', () => {
   });
 
   it.each(['', '  '])('treats blank DRAGONS_RETRY_BASE_DELAY_MS %j as unset', (value) => {
-    expect(loadConfig({ DRAGONS_RETRY_BASE_DELAY_MS: value }).retryBaseDelayMs).toBe(250);
+    expect(loadConfig({ DRAGONS_RETRY_BASE_DELAY_MS: value }).retryBaseDelayMs).toBe(500);
   });
 
   it('accepts DRAGONS_RETRY_ATTEMPTS at the upper bound of 10', () => {

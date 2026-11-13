@@ -186,4 +186,41 @@ describe('HttpDragonsApi', () => {
     const { api } = setup(() => json(null));
     await expect(api.startGame()).rejects.toThrow(ValidationError);
   });
+
+  describe('network error diagnostics', () => {
+    const failWith = (thrown: unknown, timeoutMs = 1000) =>
+      setup(
+        () => {
+          throw thrown;
+        },
+        'https://api.test/v2',
+        timeoutMs,
+      ).api.startGame();
+
+    it('includes the underlying cause code and keeps the original as cause', async () => {
+      const thrown = Object.assign(new TypeError('fetch failed'), {
+        cause: Object.assign(new Error('read ECONNRESET'), { code: 'ECONNRESET' }),
+      });
+      const result = failWith(thrown);
+      await expect(result).rejects.toThrow(
+        /POST \/game\/start failed: network error \(.*ECONNRESET.*\)/,
+      );
+      await expect(result).rejects.toMatchObject({ cause: thrown, retryable: true });
+    });
+
+    it('describes a plain Error', async () => {
+      await expect(failWith(new Error('boom'))).rejects.toThrow('network error (boom)');
+    });
+
+    it('describes a non-Error throwable', async () => {
+      await expect(failWith('kaput')).rejects.toThrow('network error (kaput)');
+    });
+
+    it('mentions the timeout when the request timed out', async () => {
+      const timeout = new DOMException('The operation was aborted due to timeout', 'TimeoutError');
+      await expect(failWith(timeout, 10000)).rejects.toThrow(
+        'network error (timed out after 10000ms)',
+      );
+    });
+  });
 });

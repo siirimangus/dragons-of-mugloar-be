@@ -61,6 +61,22 @@ export class HttpDragonsApi implements DragonsApi {
     );
   }
 
+  private describeCause(error: unknown): string {
+    if (!(error instanceof Error)) return String(error);
+    if (
+      error.name === 'TimeoutError' ||
+      (error.cause instanceof Error && error.cause.name === 'TimeoutError')
+    ) {
+      return `timed out after ${this.timeoutMs}ms`;
+    }
+    const code = [error.cause, error]
+      .map((e) => (e as { code?: unknown } | undefined)?.code)
+      .find((c) => typeof c === 'string');
+    const detail =
+      error.cause instanceof Error ? `${error.message}: ${error.cause.message}` : error.message;
+    return code === undefined ? detail : `${detail} [${String(code)}]`;
+  }
+
   private request<T>(
     method: 'GET' | 'POST',
     path: string,
@@ -76,7 +92,13 @@ export class HttpDragonsApi implements DragonsApi {
           signal: AbortSignal.timeout(this.timeoutMs),
         });
       } catch (cause) {
-        throw new ApiError(`${method} ${path} failed: network error`, { retryable: true, cause });
+        throw new ApiError(
+          `${method} ${path} failed: network error (${this.describeCause(cause)})`,
+          {
+            retryable: true,
+            cause,
+          },
+        );
       }
       if (!response.ok) {
         await response.body?.cancel().catch(() => undefined);
