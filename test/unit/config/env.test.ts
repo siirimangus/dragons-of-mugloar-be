@@ -38,12 +38,45 @@ describe('loadConfig', () => {
   it.each([
     ['DRAGONS_HTTP_TIMEOUT_MS', 'abc'],
     ['DRAGONS_HTTP_TIMEOUT_MS', '-5'],
+    ['DRAGONS_HTTP_TIMEOUT_MS', '12.5'],
+    ['DRAGONS_HTTP_TIMEOUT_MS', 'Infinity'],
     ['DRAGONS_RETRY_ATTEMPTS', '0'],
+    ['DRAGONS_RETRY_BASE_DELAY_MS', '-1'],
     ['DRAGONS_MAX_TURNS', '0'],
     ['DRAGONS_API_BASE_URL', 'not a url'],
+    ['DRAGONS_API_BASE_URL', 'ftp://example.com'],
+    ['DRAGONS_API_BASE_URL', 'foo:bar'],
     ['LOG_LEVEL', 'loud'],
   ])('rejects %s=%s with a readable error', (key, value) => {
-    expect(() => loadConfig({ [key]: value })).toThrow(ConfigError);
-    expect(() => loadConfig({ [key]: value })).toThrow(key);
+    let error: unknown;
+    try {
+      loadConfig({ [key]: value });
+    } catch (caught) {
+      error = caught;
+    }
+    expect(error).toBeInstanceOf(ConfigError);
+    expect((error as ConfigError).message).toContain(key);
+  });
+
+  it('names every invalid variable in the error', () => {
+    let error: unknown;
+    try {
+      loadConfig({ DRAGONS_MAX_TURNS: '0', LOG_LEVEL: 'loud' });
+    } catch (caught) {
+      error = caught;
+    }
+    expect(error).toBeInstanceOf(ConfigError);
+    expect((error as ConfigError).message).toContain('DRAGONS_MAX_TURNS');
+    expect((error as ConfigError).message).toContain('LOG_LEVEL');
+  });
+
+  it.each(['', '  '])('treats blank DRAGONS_RETRY_BASE_DELAY_MS %j as unset', (value) => {
+    expect(loadConfig({ DRAGONS_RETRY_BASE_DELAY_MS: value }).retryBaseDelayMs).toBe(250);
+  });
+
+  it('treats a blank DRAGONS_API_BASE_URL as unset', () => {
+    expect(loadConfig({ DRAGONS_API_BASE_URL: '' }).apiBaseUrl).toBe(
+      'https://dragonsofmugloar.com/api/v2',
+    );
   });
 });
