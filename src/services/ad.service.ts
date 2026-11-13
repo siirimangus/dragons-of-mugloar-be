@@ -29,7 +29,10 @@ export function decodeAds(raws: readonly RawAd[], logger: Logger): Ad[] {
 }
 
 export function isTrap(ad: Ad, tuning: Tuning): boolean {
-  return tuning.trapPatterns.some((pattern) => pattern.test(ad.message));
+  return tuning.trapPatterns.some((pattern) => {
+    pattern.lastIndex = 0; // global/sticky regexes are stateful
+    return pattern.test(ad.message);
+  });
 }
 
 export function successProbability(ad: Ad, tuning: Tuning): number {

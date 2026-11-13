@@ -1,5 +1,7 @@
 import type { Tuning } from '../../src/config/tuning.js';
 
+// Intentionally frozen copy of the initial estimates; do not sync with DEFAULT_TUNING
+// (unit tests must not move when DEFAULT_TUNING is calibrated).
 export const TEST_TUNING: Tuning = {
   labelProbability: {
     'Piece of cake': 0.95,
@@ -20,5 +22,5 @@ export const TEST_TUNING: Tuning = {
   healThreshold: 2,
   reserveGold: 50,
   upgradePriority: ['cs'],
-  trapPatterns: [/super awesome/i],
+  trapPatterns: [/super\s+awesome/i],
 };

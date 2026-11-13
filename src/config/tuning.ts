@@ -46,5 +46,5 @@ export const DEFAULT_TUNING: Tuning = {
     'mtrix',
     'wingpotmax',
   ],
-  trapPatterns: [/super awesome/i],
+  trapPatterns: [/super\s+awesome/i],
 };

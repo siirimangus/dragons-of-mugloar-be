@@ -19,11 +19,11 @@ const rawAd = (overrides: Partial<RawAd> = {}): RawAd => ({
 });
 
 function capturingLogger() {
-  const warnings: string[] = [];
+  const warnings: { message: string; meta: unknown }[] = [];
   const logger: Logger = {
     debug: () => undefined,
     info: () => undefined,
-    warn: (message) => void warnings.push(message),
+    warn: (message, meta) => void warnings.push({ message, meta }),
     error: () => undefined,
   };
   return { logger, warnings };
@@ -73,6 +73,18 @@ describe('decodeAds', () => {
     );
     expect(ads.map((ad) => ad.adId)).toEqual(['good']);
     expect(warnings).toHaveLength(1);
+    expect(warnings[0]?.meta).toEqual({ adId: 'bad', reason: expect.any(String) });
+  });
+
+  it('rethrows errors that are not DecodeErrors', () => {
+    const { logger } = capturingLogger();
+    const broken = rawAd();
+    Object.defineProperty(broken, 'message', {
+      get: () => {
+        throw new TypeError('boom');
+      },
+    });
+    expect(() => decodeAds([broken], logger)).toThrow(TypeError);
   });
 });
 
@@ -82,6 +94,28 @@ describe('isTrap', () => {
     'Steal super awesome diamond house from Valentine Sherman',
   ])('flags "%s"', (message) => {
     expect(isTrap(makeAd({ message }), TEST_TUNING)).toBe(true);
+  });
+
+  it('flags a trap with irregular whitespace', () => {
+    expect(
+      isTrap(makeAd({ message: 'Steal super   awesome diamond pot from X' }), TEST_TUNING),
+    ).toBe(true);
+  });
+
+  it('is not fooled by stateful global regexes', () => {
+    const tuning = { ...TEST_TUNING, trapPatterns: [/super awesome/gi] };
+    const ad = makeAd({ message: 'Steal super awesome diamond pot from X' });
+    expect([isTrap(ad, tuning), isTrap(ad, tuning), isTrap(ad, tuning)]).toEqual([
+      true,
+      true,
+      true,
+    ]);
+  });
+
+  it('flags a trap that arrived Base64-encrypted', () => {
+    const message = Buffer.from('Steal super awesome diamond pot from X').toString('base64');
+    const ad = decodeAd(rawAd({ encrypted: 1, message, probability: 'U3VyZSB0aGluZw==' }));
+    expect(isTrap(ad, TEST_TUNING)).toBe(true);
   });
 
   it.each([
@@ -140,6 +174,19 @@ describe('rankAds', () => {
       TEST_TUNING,
     );
     expect(ranked.map((entry) => entry.ad.adId)).toEqual(['ok']);
+  });
+
+  it('breaks score ties by higher reward', () => {
+    const tuning = { ...TEST_TUNING, labelProbability: { A: 1, B: 0.5 }, lifeValue: 100 };
+    const ranked = rankAds(
+      [
+        makeAd({ adId: 'low', probability: 'A', reward: 50 }),
+        makeAd({ adId: 'high', probability: 'B', reward: 200 }),
+      ],
+      tuning,
+    );
+    expect(ranked.map((entry) => entry.score)).toEqual([50, 50]);
+    expect(ranked.map((entry) => entry.ad.adId)).toEqual(['high', 'low']);
   });
 
   it('returns an empty list when there are no ads', () => {

@@ -12,6 +12,16 @@ describe('DEFAULT_TUNING', () => {
     }
   });
 
+  it('values a life above zero', () => {
+    expect(DEFAULT_TUNING.lifeValue).toBeGreaterThan(0);
+  });
+
+  it('has no stateful (global or sticky) trap patterns', () => {
+    for (const pattern of DEFAULT_TUNING.trapPatterns) {
+      expect(pattern.flags).not.toMatch(/[gy]/);
+    }
+  });
+
   it('lists each upgrade once and never the healing item', () => {
     const priority = DEFAULT_TUNING.upgradePriority;
     expect(new Set(priority).size).toBe(priority.length);
