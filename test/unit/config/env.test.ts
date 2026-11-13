@@ -41,6 +41,7 @@ describe('loadConfig', () => {
     ['DRAGONS_HTTP_TIMEOUT_MS', '12.5'],
     ['DRAGONS_HTTP_TIMEOUT_MS', 'Infinity'],
     ['DRAGONS_RETRY_ATTEMPTS', '0'],
+    ['DRAGONS_RETRY_ATTEMPTS', '11'],
     ['DRAGONS_RETRY_BASE_DELAY_MS', '-1'],
     ['DRAGONS_MAX_TURNS', '0'],
     ['DRAGONS_API_BASE_URL', 'not a url'],
@@ -72,6 +73,10 @@ describe('loadConfig', () => {
 
   it.each(['', '  '])('treats blank DRAGONS_RETRY_BASE_DELAY_MS %j as unset', (value) => {
     expect(loadConfig({ DRAGONS_RETRY_BASE_DELAY_MS: value }).retryBaseDelayMs).toBe(250);
+  });
+
+  it('accepts DRAGONS_RETRY_ATTEMPTS at the upper bound of 10', () => {
+    expect(loadConfig({ DRAGONS_RETRY_ATTEMPTS: '10' }).retryAttempts).toBe(10);
   });
 
   it('treats a blank DRAGONS_API_BASE_URL as unset', () => {
