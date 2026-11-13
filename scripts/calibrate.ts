@@ -1,59 +1,45 @@
-import { parseArgs } from 'node:util';
 import { loadConfig } from '../src/config/env.js';
 import { DEFAULT_TUNING, type Tuning } from '../src/config/tuning.js';
 import { createConsoleLogger } from '../src/utils/logger.js';
+import { type CalibrateArgs, parseCalibrateArgs } from './lib/args.js';
 import { playGames } from './lib/play-games.js';
 import { scoreStats } from './lib/stats.js';
 
-const { values } = parseArgs({
-  options: {
-    games: { type: 'string', default: '20' },
-    concurrency: { type: 'string', default: '4' },
-    'max-turns': { type: 'string', default: '200' },
-    priority: { type: 'string' },
-    'life-value': { type: 'string' },
-    'heal-threshold': { type: 'string' },
-    target: { type: 'string', default: '1000' },
-  },
-});
+let args: CalibrateArgs;
+try {
+  args = parseCalibrateArgs(process.argv.slice(2));
+} catch (error) {
+  console.error(error instanceof Error ? error.message : String(error));
+  process.exit(2);
+}
 
 function buildTuning(): Tuning {
-  const priority =
-    values.priority === undefined
-      ? DEFAULT_TUNING.upgradePriority
-      : values.priority === 'none'
-        ? []
-        : values.priority.split(',');
   return {
     ...DEFAULT_TUNING,
-    upgradePriority: priority,
-    lifeValue:
-      values['life-value'] === undefined ? DEFAULT_TUNING.lifeValue : Number(values['life-value']),
-    healThreshold:
-      values['heal-threshold'] === undefined
-        ? DEFAULT_TUNING.healThreshold
-        : Number(values['heal-threshold']),
+    upgradePriority: args.priority ?? DEFAULT_TUNING.upgradePriority,
+    lifeValue: args.lifeValue ?? DEFAULT_TUNING.lifeValue,
+    healThreshold: args.healThreshold ?? DEFAULT_TUNING.healThreshold,
   };
 }
 
 const tuning = buildTuning();
-const target = Number(values.target);
+const target = args.target;
 const config = loadConfig({
   ...process.env,
-  DRAGONS_MAX_TURNS: values['max-turns'],
+  DRAGONS_MAX_TURNS: String(args.maxTurns),
   LOG_LEVEL: 'warn',
 });
 
 console.log(
-  `Playing ${values.games} games (concurrency ${values.concurrency}, max ${values['max-turns']} turns)`,
+  `Playing ${args.games} games (concurrency ${args.concurrency}, max ${args.maxTurns} turns)`,
 );
 console.log(
   `Tuning: priority=[${tuning.upgradePriority.join(',')}] lifeValue=${tuning.lifeValue} healThreshold=${tuning.healThreshold}`,
 );
 
 const reports = await playGames({
-  games: Number(values.games),
-  concurrency: Number(values.concurrency),
+  games: args.games,
+  concurrency: args.concurrency,
   config,
   tuning,
   logger: createConsoleLogger('warn'),
@@ -92,7 +78,9 @@ if (okReports.length > 0) {
     }
   }
   for (const [label, entry] of [...byLabel].sort((a, b) => b[1].attempts - a[1].attempts)) {
-    const current = DEFAULT_TUNING.labelProbability[label];
+    const current = Object.hasOwn(tuning.labelProbability, label)
+      ? tuning.labelProbability[label]
+      : undefined;
     console.log(
       `${label.padEnd(20)} attempts=${String(entry.attempts).padStart(4)} ` +
         `observed=${(entry.successes / entry.attempts).toFixed(2)} ` +
@@ -133,7 +121,7 @@ if (okReports.length > 0) {
   }
   for (const [itemId, entry] of byItem) {
     console.log(
-      `${itemId}: ${entry.successes}/${entry.attempts}, levels [${[...entry.levels].sort().join(',')}]`,
+      `${itemId}: ${entry.successes}/${entry.attempts}, levels [${[...entry.levels].sort((a, b) => a - b).join(',')}]`,
     );
   }
 
@@ -146,5 +134,7 @@ if (okReports.length > 0) {
 
 if (errors.length > 0) {
   console.log(`\n== ${errors.length} game(s) failed with errors ==`);
-  for (const message of new Set(errors)) console.log(`- ${message}`);
+  const errorCounts = new Map<string, number>();
+  for (const message of errors) errorCounts.set(message, (errorCounts.get(message) ?? 0) + 1);
+  for (const [message, count] of errorCounts) console.log(`- ${count}x ${message}`);
 }

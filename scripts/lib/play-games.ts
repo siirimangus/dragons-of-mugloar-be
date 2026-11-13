@@ -24,11 +24,14 @@ export type PlayOptions = {
   readonly logger: Logger;
 };
 
-async function mapPool<T, R>(
+export function mapPool<T, R>(
   items: readonly T[],
   concurrency: number,
   fn: (item: T) => Promise<R>,
 ): Promise<R[]> {
+  if (!Number.isInteger(concurrency) || concurrency < 1) {
+    throw new RangeError(`concurrency must be an integer >= 1, got ${concurrency}`);
+  }
   const results: R[] = new Array<R>(items.length);
   let next = 0;
   const workers = Array.from({ length: Math.min(concurrency, items.length) }, async () => {
@@ -37,8 +40,7 @@ async function mapPool<T, R>(
       results[index] = await fn(items[index] as T);
     }
   });
-  await Promise.all(workers);
-  return results;
+  return Promise.all(workers).then(() => results);
 }
 
 async function playOne(options: PlayOptions): Promise<GameReport> {

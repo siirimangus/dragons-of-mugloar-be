@@ -11,6 +11,8 @@ export type ScoreStats = {
 export function scoreStats(scores: readonly number[], target: number): ScoreStats {
   if (scores.length === 0) throw new Error('No scores to summarise');
   const sorted = [...scores].sort((a, b) => a - b);
+  // Percentile convention: upper index, sorted[floor(q * n)]. For even n the median is the
+  // upper middle element (e.g. [1,2,3,4] -> 3).
   const at = (quantile: number): number =>
     sorted[Math.min(sorted.length - 1, Math.floor(quantile * sorted.length))] as number;
   const sum = sorted.reduce((total, value) => total + value, 0);
