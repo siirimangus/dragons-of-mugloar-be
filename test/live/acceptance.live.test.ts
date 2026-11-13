@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { loadConfig } from '../../src/config/env.js';
 import { DEFAULT_TUNING } from '../../src/config/tuning.js';
 import { createConsoleLogger } from '../../src/utils/logger.js';
+import { formatDistribution } from '../../scripts/lib/format-distribution.js';
 import { playGames } from '../../scripts/lib/play-games.js';
 import { scoreStats } from '../../scripts/lib/stats.js';
 
@@ -24,15 +25,15 @@ describe('live acceptance', () => {
       logger: createConsoleLogger('warn'),
     });
 
+    // Print before asserting so the results are visible even when an assertion fails.
+    // process.stdout.write is used because vitest's default reporter hides console.log of passing tests.
+    process.stdout.write(`\n${formatDistribution(reports, MIN_SCORE).join('\n')}\n`);
+
     const errors = reports.flatMap((report) => (report.ok ? [] : [report.error]));
     expect(errors).toEqual([]);
 
     const scores = reports.flatMap((report) => (report.ok ? [report.summary.score] : []));
     const stats = scoreStats(scores, MIN_SCORE);
-    console.log(
-      `games=${stats.count} min=${stats.min} median=${stats.median} max=${stats.max} ` +
-        `share>=${MIN_SCORE}: ${(stats.shareAtLeast * 100).toFixed(0)}%`,
-    );
     expect(stats.shareAtLeast).toBeGreaterThanOrEqual(MIN_SHARE);
   });
 });
