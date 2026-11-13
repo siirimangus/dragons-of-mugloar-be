@@ -27,6 +27,20 @@ export type GameServiceDeps = {
 
 type Stats = { solved: number; failed: number; purchases: number; goldSpent: number };
 
+/** Mutable bookkeeping for one run. */
+type RunContext = {
+  readonly shop: readonly ShopItem[];
+  /** Ids of shop items attempted (never retried, whatever the outcome). */
+  readonly purchased: string[];
+  readonly stats: Stats;
+  /** Ads the API rejected on the current turn; cleared when the turn advances. */
+  readonly rejectedAds: Set<string>;
+  /** What the in-flight turn was trying to do, for diagnostics. */
+  attempt: { adId?: string; itemId?: string };
+};
+
+const PROGRESS_EVERY = 25;
+
 function isSkippable(error: unknown): error is NoActionError | ApiError {
   return error instanceof NoActionError || (error instanceof ApiError && !error.retryable);
 }
@@ -47,34 +61,63 @@ export class GameService {
   async run(signal?: AbortSignal): Promise<RunSummary> {
     let state = await this.api.startGame();
     // Prices are static for a game; the shop is fetched once.
-    const shop = await this.api.getShop(state.gameId);
-    const stats: Stats = { solved: 0, failed: 0, purchases: 0, goldSpent: 0 };
-    const purchased: string[] = [];
+    const ctx: RunContext = {
+      shop: await this.api.getShop(state.gameId),
+      purchased: [],
+      stats: { solved: 0, failed: 0, purchases: 0, goldSpent: 0 },
+      rejectedAds: new Set(),
+      attempt: {},
+    };
     let consecutiveFailures = 0;
     let endedBy: EndReason = 'lives';
 
     this.logger.info('Game started', { gameId: state.gameId });
 
-    while (state.lives > 0) {
-      if (signal?.aborted) {
-        endedBy = 'aborted';
-        break;
+    try {
+      while (state.lives > 0) {
+        if (signal?.aborted) {
+          endedBy = 'aborted';
+          break;
+        }
+        if (state.turn >= this.options.maxTurns) {
+          endedBy = 'turn-limit';
+          break;
+        }
+        try {
+          const next = await this.playTurn(state, ctx);
+          consecutiveFailures = 0;
+          if (next.turn !== state.turn) ctx.rejectedAds.clear();
+          if (next.turn !== state.turn && next.turn % PROGRESS_EVERY === 0) {
+            this.logger.info('Progress', {
+              turn: next.turn,
+              score: next.score,
+              gold: next.gold,
+              lives: next.lives,
+            });
+          }
+          state = next;
+        } catch (error) {
+          if (!isSkippable(error)) throw error;
+          consecutiveFailures += 1;
+          this.logger.warn('Turn skipped', {
+            reason: error.message,
+            consecutiveFailures,
+            ...ctx.attempt,
+          });
+          if (consecutiveFailures >= this.options.maxConsecutiveFailures) throw error;
+        }
       }
-      if (state.turn >= this.options.maxTurns) {
-        endedBy = 'turn-limit';
-        break;
-      }
-      try {
-        state = await this.playTurn(state, shop, purchased, stats);
-        consecutiveFailures = 0;
-      } catch (error) {
-        if (!isSkippable(error)) throw error;
-        consecutiveFailures += 1;
-        this.logger.warn('Turn skipped', { reason: error.message, consecutiveFailures });
-        if (consecutiveFailures >= this.options.maxConsecutiveFailures) throw error;
-      }
+    } catch (error) {
+      this.logger.error('Run failed', { ...this.summarize(state, ctx.stats) });
+      throw error;
     }
 
+    const summary: RunSummary = { ...this.summarize(state, ctx.stats), endedBy };
+    this.logger.info('Run finished', { ...summary });
+    return summary;
+  }
+
+  private summarize(state: GameState, stats: Stats): Omit<RunSummary, 'endedBy'> {
     return {
       gameId: state.gameId,
       score: state.score,
@@ -86,24 +129,32 @@ export class GameService {
       goldSpent: stats.goldSpent,
       finalGold: state.gold,
       finalLives: state.lives,
-      endedBy,
     };
   }
 
-  private async playTurn(
-    state: GameState,
-    shop: readonly ShopItem[],
-    purchased: string[],
-    stats: Stats,
-  ): Promise<GameState> {
-    const ads = decodeAds(await this.api.getMessages(state.gameId), this.logger);
-    const action = this.strategy.chooseAction({ state, ads, shop, purchased });
+  private async playTurn(state: GameState, ctx: RunContext): Promise<GameState> {
+    ctx.attempt = {};
+    const decoded = decodeAds(await this.api.getMessages(state.gameId), this.logger);
+    const ads = decoded.filter((ad) => !ctx.rejectedAds.has(ad.adId));
+    const action = this.strategy.chooseAction({
+      state,
+      ads,
+      shop: ctx.shop,
+      purchased: ctx.purchased,
+    });
     if (action === null) throw new NoActionError('Strategy produced no action');
 
     if (action.kind === 'solve') {
-      const result = await this.api.solve(state.gameId, action.adId);
-      if (result.success) stats.solved += 1;
-      else stats.failed += 1;
+      ctx.attempt = { adId: action.adId };
+      let result;
+      try {
+        result = await this.api.solve(state.gameId, action.adId);
+      } catch (error) {
+        if (error instanceof ApiError && !error.retryable) ctx.rejectedAds.add(action.adId);
+        throw error;
+      }
+      if (result.success) ctx.stats.solved += 1;
+      else ctx.stats.failed += 1;
       this.logger.debug('Solved ad', {
         adId: action.adId,
         success: result.success,
@@ -112,11 +163,13 @@ export class GameService {
       return applySolve(state, result);
     }
 
+    ctx.attempt = { itemId: action.itemId };
+    // Record the attempt up front so a failed purchase is never retried.
+    ctx.purchased.push(action.itemId);
     const result = await this.api.buy(state.gameId, action.itemId);
-    purchased.push(action.itemId);
     if (result.shoppingSuccess) {
-      stats.purchases += 1;
-      stats.goldSpent += shop.find((item) => item.id === action.itemId)?.cost ?? 0;
+      ctx.stats.purchases += 1;
+      ctx.stats.goldSpent += ctx.shop.find((item) => item.id === action.itemId)?.cost ?? 0;
     }
     this.logger.debug('Bought item', { itemId: action.itemId, success: result.shoppingSuccess });
     return applyPurchase(state, result);
