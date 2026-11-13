@@ -25,6 +25,12 @@ const LABEL_SUCCESS: Readonly<Record<string, number>> = {
 };
 const LABELS = Object.keys(LABEL_SUCCESS);
 
+/**
+ * Seeded in-memory stand-in for the Dragons of Mugloar API (test use only).
+ * Simplifications: one instance is one game; ads never expire and the whole board
+ * regenerates after every solve. The real API's exact game-over response is an assumption
+ * (modelled here as a non-retryable 400 on solve/buy once lives reach 0).
+ */
 export type FakeOptions = {
   readonly seed?: number;
   readonly lives?: number;
@@ -46,10 +52,14 @@ function mulberry32(seed: number): () => number {
 type Hidden = { readonly successRate: number; readonly isTrap: boolean };
 
 export class FakeDragonsApi implements DragonsApi {
+  /** Successful purchases only. */
   readonly purchases: string[] = [];
   trapsSolved = 0;
 
-  private readonly random: () => number;
+  /** Ad generation stream: content depends only on the refresh count. */
+  private readonly adRandom: () => number;
+  /** Solve outcome stream: depends only on the number of solves. */
+  private readonly outcomeRandom: () => number;
   private readonly overrideRate: number | undefined;
   private readonly shop: readonly ShopItem[] = [
     { id: 'hpot', name: 'Healing potion', cost: 50 },
@@ -62,7 +72,9 @@ export class FakeDragonsApi implements DragonsApi {
   private adCounter = 0;
 
   constructor(options: FakeOptions = {}) {
-    this.random = mulberry32(options.seed ?? 1);
+    const seed = options.seed ?? 1;
+    this.adRandom = mulberry32(seed);
+    this.outcomeRandom = mulberry32((seed ^ 0x9e3779b9) >>> 0);
     this.overrideRate = options.successRateOverride;
     this.state = {
       gameId: 'fake-game',
@@ -75,12 +87,14 @@ export class FakeDragonsApi implements DragonsApi {
     };
   }
 
+  /** For test assertions only; not part of the DragonsApi contract. */
   snapshot(): GameState {
     return this.state;
   }
 
   async startGame(): Promise<GameState> {
-    this.refreshAds();
+    // One instance is one game: later calls return the current state without resetting.
+    if (this.ads.length === 0) this.refreshAds();
     return this.state;
   }
 
@@ -96,11 +110,13 @@ export class FakeDragonsApi implements DragonsApi {
 
   async solve(gameId: string, adId: string): Promise<SolveResult> {
     this.assertGame(gameId);
+    this.assertAlive();
     const ad = this.ads.find((candidate) => candidate.adId === adId);
     const hidden = this.hidden.get(adId);
     if (!ad || !hidden) throw new ApiError('Ad not found', { status: 404, retryable: false });
 
-    const success = this.random() < hidden.successRate;
+    // Trap success rate is 0: assumes real traps always fail.
+    const success = this.outcomeRandom() < hidden.successRate;
     if (hidden.isTrap) this.trapsSolved += 1;
 
     const score = success ? this.state.score + ad.reward : this.state.score;
@@ -126,6 +142,7 @@ export class FakeDragonsApi implements DragonsApi {
 
   async buy(gameId: string, itemId: string): Promise<PurchaseResult> {
     this.assertGame(gameId);
+    this.assertAlive();
     const item = this.shop.find((candidate) => candidate.id === itemId);
     if (!item) throw new ApiError('Item not found', { status: 404, retryable: false });
 
@@ -162,6 +179,11 @@ export class FakeDragonsApi implements DragonsApi {
       throw new ApiError('Game not found', { status: 404, retryable: false });
   }
 
+  private assertAlive(): void {
+    if (this.state.lives <= 0)
+      throw new ApiError('No lives left', { status: 400, retryable: false });
+  }
+
   private refreshAds(): void {
     this.ads = [];
     this.hidden.clear();
@@ -173,14 +195,14 @@ export class FakeDragonsApi implements DragonsApi {
     const adId = `ad-${this.adCounter++}`;
     const label = isTrap
       ? 'Piece of cake'
-      : (LABELS[Math.floor(this.random() * LABELS.length)] ?? 'Hmmm....');
+      : (LABELS[Math.floor(this.adRandom() * LABELS.length)] ?? 'Hmmm....');
     const message = isTrap
       ? `Steal super awesome diamond pot from Person ${adId}`
       : `Help Person ${adId} to fix their wagon`;
     const reward = isTrap
-      ? 150 + Math.floor(this.random() * 30)
-      : 5 + Math.floor(this.random() * 75);
-    const roll = this.random();
+      ? 150 + Math.floor(this.adRandom() * 30)
+      : 5 + Math.floor(this.adRandom() * 75);
+    const roll = this.adRandom();
     const encrypted: EncryptionKind | null = roll < 0.2 ? 1 : roll < 0.4 ? 2 : null;
     const encode = (value: string): string =>
       encrypted === 1
