@@ -37,7 +37,10 @@ describe('chooseShopAction', () => {
   });
 
   it('skips upgrades already purchased', () => {
-    const ctx = makeContext({ state: makeState({ lives: 3, gold: 400 }), purchased: ['cs'] });
+    const ctx = makeContext({
+      state: makeState({ lives: 3, gold: 400 }),
+      attemptedItemIds: ['cs'],
+    });
     expect(chooseShopAction(ctx, tuning)).toEqual({ kind: 'buy', itemId: 'ch' });
   });
 
@@ -67,7 +70,10 @@ describe('chooseShopAction', () => {
   });
 
   it('still heals when the potion was purchased before (potions are repeatable)', () => {
-    const ctx = makeContext({ state: makeState({ lives: 1, gold: 60 }), purchased: ['hpot'] });
+    const ctx = makeContext({
+      state: makeState({ lives: 1, gold: 60 }),
+      attemptedItemIds: ['hpot'],
+    });
     expect(chooseShopAction(ctx, tuning)).toEqual({ kind: 'buy', itemId: 'hpot' });
   });
 
@@ -80,7 +86,7 @@ describe('chooseShopAction', () => {
   it('returns null when every upgrade is already purchased', () => {
     const ctx = makeContext({
       state: makeState({ lives: 3, gold: 1000 }),
-      purchased: ['cs', 'ch'],
+      attemptedItemIds: ['cs', 'ch'],
     });
     expect(chooseShopAction(ctx, tuning)).toBeNull();
   });

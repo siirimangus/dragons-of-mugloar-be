@@ -43,7 +43,7 @@ function capturingLogger(): { logger: Logger; entries: LogEntry[] } {
 function buyOnceThenSolve(itemId: string): Strategy {
   return {
     chooseAction: (ctx): Action | null => {
-      if (!ctx.purchased.includes(itemId)) return { kind: 'buy', itemId };
+      if (!ctx.attemptedItemIds.includes(itemId)) return { kind: 'buy', itemId };
       const ad = ctx.ads[0];
       return ad ? { kind: 'solve', adId: ad.adId } : null;
     },

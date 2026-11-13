@@ -55,8 +55,8 @@ export type StrategyContext = {
   readonly state: GameState;
   readonly ads: readonly Ad[];
   readonly shop: readonly ShopItem[];
-  /** Ids of shop items already attempted in this game. */
-  readonly purchased: readonly string[];
+  /** Ids of shop items attempted in this game: attempted, never retried, whatever the outcome. */
+  readonly attemptedItemIds: readonly string[];
 };
 
 export type EndReason = 'lives' | 'turn-limit' | 'aborted';

@@ -31,7 +31,7 @@ type Stats = { solved: number; failed: number; purchases: number; goldSpent: num
 type RunContext = {
   readonly shop: readonly ShopItem[];
   /** Ids of shop items attempted (never retried, whatever the outcome). */
-  readonly purchased: string[];
+  readonly attemptedItemIds: string[];
   readonly stats: Stats;
   /** Ads the API rejected on the current turn; cleared when the turn advances. */
   readonly rejectedAds: Set<string>;
@@ -63,7 +63,7 @@ export class GameService {
     // Prices are static for a game; the shop is fetched once.
     const ctx: RunContext = {
       shop: await this.api.getShop(state.gameId),
-      purchased: [],
+      attemptedItemIds: [],
       stats: { solved: 0, failed: 0, purchases: 0, goldSpent: 0 },
       rejectedAds: new Set(),
       attempt: {},
@@ -140,7 +140,7 @@ export class GameService {
       state,
       ads,
       shop: ctx.shop,
-      purchased: ctx.purchased,
+      attemptedItemIds: ctx.attemptedItemIds,
     });
     if (action === null) throw new NoActionError('Strategy produced no action');
 
@@ -165,7 +165,7 @@ export class GameService {
 
     ctx.attempt = { itemId: action.itemId };
     // Record the attempt up front so a failed purchase is never retried.
-    ctx.purchased.push(action.itemId);
+    ctx.attemptedItemIds.push(action.itemId);
     const result = await this.api.buy(state.gameId, action.itemId);
     if (result.shoppingSuccess) {
       ctx.stats.purchases += 1;

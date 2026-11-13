@@ -32,14 +32,14 @@ export class ExpectedValueStrategy implements Strategy {
   }
 
   /**
-   * Buying a potion advances the turn (refreshing the board) and gains a life. With no safe ad at
-   * all the alternative is aborting, so any affordable potion will do; with a merely bad ad the
+   * Buying a potion advances the turn (refreshing the board) and gains a life. With no candidate
+   * (non-trap) ad at all the alternative is aborting, so any affordable potion will do; with a merely bad ad the
    * pot must stay above `waitReserveGold` so waiting cannot drain it.
    */
-  private waitAction(ctx: StrategyContext, hasSafeAd: boolean): Action | null {
+  private waitAction(ctx: StrategyContext, hasCandidate: boolean): Action | null {
     const healItem = ctx.shop.find((item) => item.id === this.tuning.healItemId);
     if (!healItem) return null;
-    const reserve = hasSafeAd ? this.tuning.waitReserveGold : 0;
+    const reserve = hasCandidate ? this.tuning.waitReserveGold : 0;
     return ctx.state.gold - healItem.cost >= reserve ? { kind: 'buy', itemId: healItem.id } : null;
   }
 }
