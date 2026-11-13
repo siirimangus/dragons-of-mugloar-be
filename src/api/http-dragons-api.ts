@@ -21,6 +21,9 @@ export type HttpDragonsApiOptions = {
 
 const segment = (value: string): string => encodeURIComponent(value);
 
+const isRetryableStatus = (status: number): boolean =>
+  status === 408 || status === 429 || status >= 500;
+
 export class HttpDragonsApi implements DragonsApi {
   private readonly baseUrl: string;
   private readonly timeoutMs: number;
@@ -76,9 +79,10 @@ export class HttpDragonsApi implements DragonsApi {
         throw new ApiError(`${method} ${path} failed: network error`, { retryable: true, cause });
       }
       if (!response.ok) {
+        await response.body?.cancel().catch(() => undefined);
         throw new ApiError(`${method} ${path} failed with status ${response.status}`, {
           status: response.status,
-          retryable: response.status >= 500 || response.status === 429,
+          retryable: isRetryableStatus(response.status),
         });
       }
       let body: unknown;
