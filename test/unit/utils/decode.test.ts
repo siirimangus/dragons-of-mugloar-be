@@ -11,6 +11,15 @@ describe('rot13', () => {
     expect(rot13(rot13(text))).toBe(text);
   });
 
+  it('handles the empty string', () => {
+    expect(rot13('')).toBe('');
+  });
+
+  it('wraps around the alphabet', () => {
+    expect(rot13('Z')).toBe('M');
+    expect(rot13('z')).toBe('m');
+  });
+
   it('leaves digits and punctuation untouched', () => {
     expect(rot13('Hmmm....')).toBe('Uzzz....');
     expect(rot13('42!')).toBe('42!');
@@ -35,6 +44,27 @@ describe('decodeBase64', () => {
   it('rejects input that is not Base64', () => {
     expect(() => decodeBase64('not base64!')).toThrow(DecodeError);
   });
+
+  it('decodes the empty string to the empty string', () => {
+    expect(decodeBase64('')).toBe('');
+  });
+
+  it.each([
+    ['embedded newline', 'Umlz\n3k='],
+    ['embedded space', 'Umlz 3k='],
+    ['URL-safe alphabet', '-_-_'],
+    ['invalid UTF-8', '/w=='],
+    ['missing padding', 'Umlza3k'],
+    ['excess padding', 'Umlza3k===='],
+  ])('rejects %s', (_label, input) => {
+    expect(() => decodeBase64(input)).toThrow(DecodeError);
+  });
+
+  it('truncates long input in the error message', () => {
+    const input = '!'.repeat(100);
+    expect(() => decodeBase64(input)).toThrow(`Not valid Base64: ${'!'.repeat(40)}...`);
+    expect(() => decodeBase64('bad!')).toThrow('Not valid Base64: bad!');
+  });
 });
 
 describe('decodeField', () => {
@@ -48,5 +78,10 @@ describe('decodeField', () => {
 
   it('treats encrypted=2 as ROT13', () => {
     expect(decodeField('Vzcbffvoyr', 2)).toBe('Impossible');
+  });
+
+  it('throws on an unsupported encryption kind', () => {
+    expect(() => decodeField('x', 3 as never)).toThrow(DecodeError);
+    expect(() => decodeField('x', undefined as never)).toThrow(/unsupported/i);
   });
 });

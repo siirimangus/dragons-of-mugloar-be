@@ -14,13 +14,24 @@ export function rot13(input: string): string {
   });
 }
 
+const MAX_ECHO = 40;
+
+function truncate(value: string): string {
+  return value.length > MAX_ECHO ? `${value.slice(0, MAX_ECHO)}...` : value;
+}
+
+const utf8 = new TextDecoder('utf-8', { fatal: true });
+
 export function decodeBase64(input: string): string {
-  const withoutPadding = (value: string): string => value.replace(/=+$/, '');
-  const decoded = Buffer.from(input, 'base64');
-  if (withoutPadding(decoded.toString('base64')) !== withoutPadding(input)) {
-    throw new DecodeError(`Not valid Base64: ${input}`);
+  const bytes = Buffer.from(input, 'base64');
+  if (bytes.toString('base64') !== input) {
+    throw new DecodeError(`Not valid Base64: ${truncate(input)}`);
   }
-  return decoded.toString('utf8');
+  try {
+    return utf8.decode(bytes);
+  } catch {
+    throw new DecodeError(`Base64 is not valid UTF-8: ${truncate(input)}`);
+  }
 }
 
 export function decodeField(value: string, encrypted: EncryptionKind | null): string {
@@ -31,5 +42,9 @@ export function decodeField(value: string, encrypted: EncryptionKind | null): st
       return decodeBase64(value);
     case 2:
       return rot13(value);
+    default: {
+      const unreachable: never = encrypted;
+      throw new DecodeError(`Unsupported encryption kind: ${String(unreachable)}`);
+    }
   }
 }
