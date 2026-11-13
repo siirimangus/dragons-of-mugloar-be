@@ -20,6 +20,8 @@ export const TEST_TUNING: Tuning = {
   lifeValue: 150,
   healItemId: 'hpot',
   healThreshold: 2,
+  minSolveScore: 0,
+  waitReserveGold: 300,
   reserveGold: 50,
   upgradePriority: ['cs'],
   trapPatterns: [/super\s+awesome/i],

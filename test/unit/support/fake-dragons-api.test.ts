@@ -235,4 +235,24 @@ describe('FakeDragonsApi', () => {
       expect(error).toMatchObject({ status: 404 });
     }
   });
+
+  it('serves a trap-only board on every k-th refresh, never the first', async () => {
+    const api = new FakeDragonsApi({ seed: 2, trapBoardEvery: 2, successRateOverride: 1 });
+    await api.startGame();
+    const allTraps: boolean[] = [];
+    for (let i = 0; i < 6; i++) {
+      const ads = (await api.getMessages('fake-game')).map(decodeAd);
+      allTraps.push(ads.length === 7 && ads.every((ad) => /super awesome/.test(ad.message)));
+      const first = ads[0];
+      if (!first) throw new Error('expected an ad');
+      await api.solve('fake-game', first.adId);
+    }
+    // refresh 0 normal, 1 normal, 2 traps, 3 normal, 4 traps, 5 normal
+    expect(allTraps).toEqual([false, false, true, false, true, false]);
+  });
+
+  it('reflects startGold in the start state', async () => {
+    const api = new FakeDragonsApi({ seed: 1, startGold: 500 });
+    expect((await api.startGame()).gold).toBe(500);
+  });
 });

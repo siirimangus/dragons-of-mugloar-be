@@ -28,7 +28,7 @@ const LABELS = Object.keys(LABEL_SUCCESS);
 /**
  * Seeded in-memory stand-in for the Dragons of Mugloar API (test use only).
  * Simplifications: one instance is one game; ads never expire and the whole board
- * regenerates after every solve. The real API's exact game-over response is an assumption
+ * regenerates after every solve and after every successful purchase. The real API's exact game-over response is an assumption
  * (modelled here as a non-retryable 400 on solve/buy once lives reach 0).
  */
 export type FakeOptions = {
@@ -36,6 +36,13 @@ export type FakeOptions = {
   readonly lives?: number;
   /** When set, every non-trap ad succeeds with exactly this probability. */
   readonly successRateOverride?: number;
+  /**
+   * When set to k, every k-th board refresh (counting from 1; the initial board is refresh 0 and
+   * stays normal) contains only trap ads (7) instead of 6 normal ads plus 1 trap.
+   */
+  readonly trapBoardEvery?: number;
+  /** Initial gold (default 0). */
+  readonly startGold?: number;
 };
 
 function mulberry32(seed: number): () => number {
@@ -63,6 +70,8 @@ export class FakeDragonsApi implements DragonsApi {
   /** Solve outcome stream: depends only on the number of solves. */
   private readonly outcomeRandom: () => number;
   private readonly overrideRate: number | undefined;
+  private readonly trapBoardEvery: number | undefined;
+  private refreshCount = 0;
   private readonly shop: readonly ShopItem[] = [
     { id: 'hpot', name: 'Healing potion', cost: 50 },
     { id: 'cs', name: 'Claw Sharpening', cost: 100 },
@@ -80,10 +89,11 @@ export class FakeDragonsApi implements DragonsApi {
     this.outcomeRandom = mulberry32((seed ^ 0x9e3779b9) >>> 0);
     this.idRandom = mulberry32((seed ^ 0x51ed270b) >>> 0);
     this.overrideRate = options.successRateOverride;
+    this.trapBoardEvery = options.trapBoardEvery;
     this.state = {
       gameId: 'fake-game',
       lives: options.lives ?? 3,
-      gold: 0,
+      gold: options.startGold ?? 0,
       level: 0,
       score: 0,
       highScore: 0,
@@ -175,6 +185,8 @@ export class FakeDragonsApi implements DragonsApi {
       lives: itemId === 'hpot' ? this.state.lives + 1 : this.state.lives,
       level: itemId === 'hpot' ? this.state.level : this.state.level + 1,
     };
+    // Like the live API, the board changes whenever the turn advances, purchases included.
+    this.refreshAds();
     return {
       shoppingSuccess: true,
       gold: this.state.gold,
@@ -197,8 +209,15 @@ export class FakeDragonsApi implements DragonsApi {
   private refreshAds(): void {
     this.ads = [];
     this.hidden.clear();
-    for (let i = 0; i < 6; i++) this.addAd(false);
-    this.addAd(true);
+    const refresh = this.refreshCount++;
+    const trapOnly =
+      this.trapBoardEvery !== undefined && refresh > 0 && refresh % this.trapBoardEvery === 0;
+    if (trapOnly) {
+      for (let i = 0; i < 7; i++) this.addAd(true);
+    } else {
+      for (let i = 0; i < 6; i++) this.addAd(false);
+      this.addAd(true);
+    }
   }
 
   private addAd(isTrap: boolean): void {

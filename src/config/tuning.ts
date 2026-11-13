@@ -5,8 +5,21 @@ export type Tuning = {
   /** What losing a life is worth, in gold, when scoring an ad. */
   readonly lifeValue: number;
   readonly healItemId: string;
-  /** Buy a healing potion when lives are at or below this. Must stay below the maximum number of lives, otherwise the bot buys a potion every turn at full health. */
+  /**
+   * Buy a healing potion when lives are at or below this. Lives are not capped at the starting 3
+   * (5 observed), but a threshold above the typical life count makes the bot buy potions every turn.
+   */
   readonly healThreshold: number;
+  /**
+   * An ad is only solved when its expected value reaches this; below it the bot prefers to wait
+   * with a heal purchase when it can afford one.
+   */
+  readonly minSolveScore: number;
+  /**
+   * When the best ad is merely negative-EV, wait with a heal purchase only if gold stays at least
+   * this high after the purchase; keeps early gold for upgrades and stops waiting from draining the pot.
+   */
+  readonly waitReserveGold: number;
   /** Gold to keep after an upgrade so a healing potion stays affordable. */
   readonly reserveGold: number;
   /** Shop items to buy, in order, once each. */
@@ -33,6 +46,8 @@ export const DEFAULT_TUNING: Tuning = {
   lifeValue: 150,
   healItemId: 'hpot',
   healThreshold: 2,
+  minSolveScore: 0,
+  waitReserveGold: 300,
   reserveGold: 50,
   upgradePriority: [
     'cs',

@@ -19,6 +19,27 @@ export class ExpectedValueStrategy implements Strategy {
     if (shopAction) return shopAction;
 
     const best = rankAds(ctx.ads, this.tuning)[0];
+    if (best && best.score >= this.tuning.minSolveScore) {
+      return { kind: 'solve', adId: best.ad.adId };
+    }
+
+    // Nothing worth solving: waiting costs gold, a failed attempt costs a life.
+    const wait = this.waitAction(ctx, best !== undefined);
+    if (wait) return wait;
+
+    // Cannot afford to wait: fall back to the least bad ad, if any.
     return best ? { kind: 'solve', adId: best.ad.adId } : null;
+  }
+
+  /**
+   * Buying a potion advances the turn (refreshing the board) and gains a life. With no safe ad at
+   * all the alternative is aborting, so any affordable potion will do; with a merely bad ad the
+   * pot must stay above `waitReserveGold` so waiting cannot drain it.
+   */
+  private waitAction(ctx: StrategyContext, hasSafeAd: boolean): Action | null {
+    const healItem = ctx.shop.find((item) => item.id === this.tuning.healItemId);
+    if (!healItem) return null;
+    const reserve = hasSafeAd ? this.tuning.waitReserveGold : 0;
+    return ctx.state.gold - healItem.cost >= reserve ? { kind: 'buy', itemId: healItem.id } : null;
   }
 }

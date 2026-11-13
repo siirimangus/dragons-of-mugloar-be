@@ -95,11 +95,30 @@ describe('GameService', () => {
 
   it('heals when lives are low and buys the configured upgrade once it can afford it', async () => {
     const api = new FakeDragonsApi({ lives: 1, successRateOverride: 1 });
-    const summary = await makeService(api, { maxTurns: 40 }).run();
+    // Waiting is disabled on purpose: this test is about the heal/upgrade rules only.
+    const noWaiting = new ExpectedValueStrategy({
+      ...TEST_TUNING,
+      minSolveScore: Number.NEGATIVE_INFINITY,
+    });
+    const summary = await makeService(api, { maxTurns: 40 }, noWaiting).run();
     expect(api.purchases.filter((id) => id === 'hpot')).toHaveLength(2);
     expect(api.purchases).toContain('cs');
     expect(summary.finalLives).toBe(3);
     expect(summary.endedBy).toBe('turn-limit');
+  });
+
+  it('waits with heal purchases through trap-only boards instead of aborting', async () => {
+    const api = new FakeDragonsApi({ seed: 7, trapBoardEvery: 2, startGold: 2000 });
+    const summary = await makeService(api, { maxTurns: 60 }).run();
+    expect(summary.endedBy).toBe('turn-limit');
+    expect(api.trapsSolved).toBe(0);
+    expect(api.purchases.filter((id) => id === 'hpot').length).toBeGreaterThan(1);
+  });
+
+  it('OBSERVED: with only trap boards after the first and no gold, the bot gives up with NoActionError', async () => {
+    const api = new FakeDragonsApi({ seed: 7, trapBoardEvery: 1, startGold: 0 });
+    await expect(makeService(api, { maxTurns: 60 }).run()).rejects.toThrow(NoActionError);
+    expect(api.trapsSolved).toBe(0);
   });
 
   it('stops at the turn limit', async () => {
