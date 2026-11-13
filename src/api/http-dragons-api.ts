@@ -77,6 +77,9 @@ export class HttpDragonsApi implements DragonsApi {
     return code === undefined ? detail : `${detail} [${String(code)}]`;
   }
 
+  // POST solve/buy are retried on network errors, timeouts and 5xx, so a lost response may be
+  // applied twice: a repeated solve gets 400 and is treated as a rejected ad; a repeated buy may
+  // cost one extra purchase. Accepted trade-off: the game API has no idempotency keys.
   private request<T>(
     method: 'GET' | 'POST',
     path: string,

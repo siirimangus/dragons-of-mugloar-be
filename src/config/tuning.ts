@@ -29,6 +29,8 @@ export type Tuning = {
 };
 
 export const DEFAULT_TUNING: Tuning = {
+  // Measured with `npm run calibrate` (live API, ~50 games, pooled over runs with upgrades
+  // enabled, Nov 2026); re-run the calibration if the game changes.
   labelProbability: {
     'Piece of cake': 0.94,
     'Walk in the park': 0.88,
