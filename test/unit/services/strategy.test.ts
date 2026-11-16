@@ -89,7 +89,7 @@ describe('ExpectedValueStrategy', () => {
       expect(strategy.chooseAction(ctx)).toBeNull();
     });
 
-    it('waits instead of solving a negative-EV ad when it can afford a potion', () => {
+    it('waits instead of solving a negative expected value ad when it can afford a potion', () => {
       const ctx = makeContext({ state: makeState({ lives: 3, gold: 350 }), ads: [badAd] });
       expect(waiter.chooseAction(ctx)).toEqual({ kind: 'buy', itemId: 'hpot' });
     });
@@ -112,7 +112,7 @@ describe('ExpectedValueStrategy', () => {
         upgradePriority: [],
         minSolveScore: 100,
       });
-      const ad = makeAd({ adId: 'ok', probability: 'Sure thing', reward: 50 }); // EV 42.5 - 22.5 = 20
+      const ad = makeAd({ adId: 'ok', probability: 'Sure thing', reward: 50 }); // expected value 42.5 - 22.5 = 20
       const rich = makeContext({ state: makeState({ lives: 3, gold: 350 }), ads: [ad] });
       expect(picky.chooseAction(rich)).toEqual({ kind: 'buy', itemId: 'hpot' });
       const poor = makeContext({ state: makeState({ lives: 3, gold: 349 }), ads: [ad] });
