@@ -45,6 +45,24 @@ export type FakeOptions = {
   readonly startGold?: number;
 };
 
+/**
+ * Creates a seeded pseudo-random number generator (mulberry32).
+ *
+ * Returns a function that, on each call, yields the next float in [0, 1), like `Math.random()`
+ * but fully deterministic: the same seed always produces the same sequence. This keeps the fake
+ * API's "random" behaviour (ad success rates, rewards, traps) reproducible, so tests are not
+ * flaky and any failing run can be replayed exactly.
+ *
+ * How it works: the 32-bit state advances by a fixed odd constant on every call, then the value is
+ * scrambled with multiply/XOR-shift steps (`Math.imul` keeps the arithmetic in 32-bit integers)
+ * and divided by 2^32 to map it into [0, 1).
+ *
+ * Fast and tiny with good statistical quality for tests and simulations, but NOT cryptographically
+ * secure and with only a 32-bit state (period about 2^32).
+ *
+ * @param seed Any number; it is coerced to an unsigned 32-bit integer.
+ * @returns A function producing the next pseudo-random float in [0, 1) on each call.
+ */
 function mulberry32(seed: number): () => number {
   let a = seed >>> 0;
   return () => {
