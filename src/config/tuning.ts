@@ -15,13 +15,14 @@ export type Tuning = {
    * with a heal purchase when it can afford one.
    */
   readonly minSolveScore: number;
-  /**
-   * When the best ad is merely negative-EV, wait with a heal purchase only if gold stays at least
-   * this high after the purchase; keeps early gold for upgrades and stops waiting from draining the pot.
-   */
-  readonly waitReserveGold: number;
   /** Gold to keep after an upgrade so a healing potion stays affordable. */
   readonly reserveGold: number;
+  /**
+   * Healing potions allowed per game. Lives are the only thing that ends a run, and gold income
+   * far exceeds a potion's cost, so an uncapped bot would buy lives forever and never finish.
+   * This cap makes the life budget finite: `3` starting lives plus at most this many.
+   */
+  readonly maxPotions: number;
   /** Shop items to buy, in order, once each. */
   readonly upgradePriority: readonly string[];
   /** Ads whose decoded message matches any pattern are never solved. */
@@ -29,19 +30,21 @@ export type Tuning = {
 };
 
 export const DEFAULT_TUNING: Tuning = {
-  // Measured with `npm run calibrate` (live API, ~50 games, pooled over runs with upgrades
-  // enabled, Nov 2026); re-run the calibration if the game changes.
+  // Measured with `npm run calibrate` (live API, 40 games across two runs, Nov 2026). Dragon level
+  // does not affect these rates (see README quirk 12), so the run with upgrades and the one with
+  // `--priority none` are pooled. Re-run the calibration if the game changes.
+  // `Impossible` is never attempted, so its 0 is an assumption rather than a measurement.
   labelProbability: {
-    'Piece of cake': 0.94,
-    'Walk in the park': 0.88,
-    'Sure thing': 0.99,
-    'Quite likely': 0.75,
-    'Hmmm....': 0.65,
-    Gamble: 0.55,
-    Risky: 0.46,
-    'Rather detrimental': 0.4,
-    'Playing with fire': 0.26,
-    'Suicide mission': 0.08,
+    'Piece of cake': 0.94, // 645/683
+    'Walk in the park': 0.86, // 352/411
+    'Sure thing': 0.98, // 240/245
+    'Quite likely': 0.79, // 177/225
+    'Hmmm....': 0.67, // 109/163
+    Gamble: 0.51, // 63/124
+    Risky: 0.44, // 40/90
+    'Rather detrimental': 0.39, // 37/96
+    'Playing with fire': 0.23, // 17/75
+    'Suicide mission': 0.11, // 11/100
     Impossible: 0,
   },
   unknownLabelProbability: 0.3,
@@ -49,8 +52,8 @@ export const DEFAULT_TUNING: Tuning = {
   healItemId: 'hpot',
   healThreshold: 2,
   minSolveScore: 0,
-  waitReserveGold: 300,
   reserveGold: 50,
+  maxPotions: 10,
   upgradePriority: [
     'cs',
     'gas',

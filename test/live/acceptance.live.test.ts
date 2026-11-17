@@ -12,11 +12,7 @@ const MIN_SHARE = Number(process.env.LIVE_MIN_SHARE ?? 0.9);
 
 describe('live acceptance', () => {
   it(`reaches ${MIN_SCORE}+ points in at least ${MIN_SHARE * 100}% of ${GAMES} real games`, async () => {
-    const config = loadConfig({
-      ...process.env,
-      DRAGONS_MAX_TURNS: process.env.DRAGONS_MAX_TURNS ?? '300',
-      LOG_LEVEL: 'warn',
-    });
+    const config = loadConfig({ ...process.env, LOG_LEVEL: 'warn' });
     const reports = await playGames({
       games: GAMES,
       concurrency: 4,

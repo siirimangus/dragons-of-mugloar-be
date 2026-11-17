@@ -19,22 +19,18 @@ function buildTuning(): Tuning {
     upgradePriority: args.priority ?? DEFAULT_TUNING.upgradePriority,
     lifeValue: args.lifeValue ?? DEFAULT_TUNING.lifeValue,
     healThreshold: args.healThreshold ?? DEFAULT_TUNING.healThreshold,
+    maxPotions: args.maxPotions ?? DEFAULT_TUNING.maxPotions,
   };
 }
 
 const tuning = buildTuning();
 const target = args.target;
-const config = loadConfig({
-  ...process.env,
-  DRAGONS_MAX_TURNS: String(args.maxTurns),
-  LOG_LEVEL: 'warn',
-});
+const config = loadConfig({ ...process.env, LOG_LEVEL: 'warn' });
 
+console.log(`Playing ${args.games} games (concurrency ${args.concurrency})`);
 console.log(
-  `Playing ${args.games} games (concurrency ${args.concurrency}, max ${args.maxTurns} turns)`,
-);
-console.log(
-  `Tuning: priority=[${tuning.upgradePriority.join(',')}] lifeValue=${tuning.lifeValue} healThreshold=${tuning.healThreshold}`,
+  `Tuning: priority=[${tuning.upgradePriority.join(',')}] lifeValue=${tuning.lifeValue} ` +
+    `healThreshold=${tuning.healThreshold} maxPotions=${tuning.maxPotions}`,
 );
 
 const reports = await playGames({
@@ -86,6 +82,40 @@ if (okReports.length > 0) {
         `observed=${(entry.successes / entry.attempts).toFixed(2)} ` +
         `tuned=${current ?? 'n/a'} avgReward=${(entry.reward / entry.attempts).toFixed(0)}`,
     );
+  }
+
+  // Does buying upgrades actually help? Comparing across a row holds the ad's difficulty label
+  // fixed, which pooling by level alone would not: the bot picks different ads as a game goes on.
+  console.log('\n== Success rate per label and dragon level ==');
+  const BUCKETS = ['0-2', '3-5', '6-8', '9+'] as const;
+  const bucketOf = (level: number): string =>
+    level <= 2 ? '0-2' : level <= 5 ? '3-5' : level <= 8 ? '6-8' : '9+';
+
+  const byLabelLevel = new Map<string, Map<string, { attempts: number; successes: number }>>();
+  for (const report of okReports) {
+    for (const solve of report.solves) {
+      const row = byLabelLevel.get(solve.label) ?? new Map();
+      const bucket = bucketOf(solve.level);
+      const cell = row.get(bucket) ?? { attempts: 0, successes: 0 };
+      cell.attempts += 1;
+      cell.successes += solve.success ? 1 : 0;
+      row.set(bucket, cell);
+      byLabelLevel.set(solve.label, row);
+    }
+  }
+
+  console.log(`${'label'.padEnd(20)}${BUCKETS.map((b) => `lvl ${b}`.padEnd(15)).join('')}`);
+  for (const [label] of [...byLabel].sort((a, b) => b[1].attempts - a[1].attempts)) {
+    const row = byLabelLevel.get(label);
+    if (!row) continue;
+    const cells = BUCKETS.map((bucket) => {
+      const cell = row.get(bucket);
+      const text = cell
+        ? `${(cell.successes / cell.attempts).toFixed(2)} (n=${cell.attempts})`
+        : '-';
+      return text.padEnd(15);
+    });
+    console.log(`${label.padEnd(20)}${cells.join('')}`);
   }
 
   console.log('\n== Failures grouped by API message ==');

@@ -15,7 +15,6 @@ export class NoActionError extends Error {
 
 export type GameServiceOptions = {
   readonly maxConsecutiveFailures: number;
-  readonly maxTurns: number;
 };
 
 export type GameServiceDeps = {
@@ -32,6 +31,8 @@ type RunContext = {
   readonly shop: readonly ShopItem[];
   /** Ids of shop items attempted (never retried, whatever the outcome). */
   readonly attemptedItemIds: string[];
+  /** Ids of shop items the API confirmed as bought. */
+  readonly purchasedItemIds: string[];
   readonly stats: Stats;
   /** Ads the API rejected on the current turn; cleared when the turn advances. */
   readonly rejectedAds: Set<string>;
@@ -64,6 +65,7 @@ export class GameService {
     const ctx: RunContext = {
       shop: await this.api.getShop(state.gameId),
       attemptedItemIds: [],
+      purchasedItemIds: [],
       stats: { solved: 0, failed: 0, purchases: 0, goldSpent: 0 },
       rejectedAds: new Set(),
       attempt: {},
@@ -79,21 +81,19 @@ export class GameService {
           endedBy = 'aborted';
           break;
         }
-        if (state.turn >= this.options.maxTurns) {
-          endedBy = 'turn-limit';
-          break;
-        }
         try {
           const next = await this.playTurn(state, ctx);
           consecutiveFailures = 0;
-          if (next.turn !== state.turn) ctx.rejectedAds.clear();
-          if (next.turn !== state.turn && next.turn % PROGRESS_EVERY === 0) {
-            this.logger.info('Progress', {
-              turn: next.turn,
-              score: next.score,
-              gold: next.gold,
-              lives: next.lives,
-            });
+          if (next.turn !== state.turn) {
+            ctx.rejectedAds.clear();
+            if (next.turn % PROGRESS_EVERY === 0) {
+              this.logger.info('Progress', {
+                turn: next.turn,
+                score: next.score,
+                gold: next.gold,
+                lives: next.lives,
+              });
+            }
           }
           state = next;
         } catch (error) {
@@ -147,6 +147,7 @@ export class GameService {
       ads,
       shop: ctx.shop,
       attemptedItemIds: ctx.attemptedItemIds,
+      purchasedItemIds: ctx.purchasedItemIds,
     });
     if (action === null) throw new NoActionError('Strategy produced no action');
 
@@ -174,6 +175,7 @@ export class GameService {
     ctx.attemptedItemIds.push(action.itemId);
     const result = await this.api.buy(state.gameId, action.itemId);
     if (result.shoppingSuccess) {
+      ctx.purchasedItemIds.push(action.itemId);
       ctx.stats.purchases += 1;
       ctx.stats.goldSpent += ctx.shop.find((item) => item.id === action.itemId)?.cost ?? 0;
     }

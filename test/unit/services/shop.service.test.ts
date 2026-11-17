@@ -83,6 +83,43 @@ describe('chooseShopAction', () => {
     expect(chooseShopAction(ctx, noReserve)).toEqual({ kind: 'buy', itemId: 'cs' });
   });
 
+  it('stops healing once the potion budget is spent', () => {
+    const capped = { ...tuning, maxPotions: 2 };
+    const ctx = makeContext({
+      state: makeState({ lives: 1, gold: 60 }),
+      purchasedItemIds: ['hpot', 'hpot'],
+    });
+    expect(chooseShopAction(ctx, capped)).toBeNull();
+  });
+
+  it('still heals while the potion budget has room left', () => {
+    const capped = { ...tuning, maxPotions: 2 };
+    const ctx = makeContext({
+      state: makeState({ lives: 1, gold: 60 }),
+      purchasedItemIds: ['hpot'],
+    });
+    expect(chooseShopAction(ctx, capped)).toEqual({ kind: 'buy', itemId: 'hpot' });
+  });
+
+  it('does not let a rejected potion purchase consume the budget', () => {
+    const capped = { ...tuning, maxPotions: 1 };
+    const ctx = makeContext({
+      state: makeState({ lives: 1, gold: 60 }),
+      attemptedItemIds: ['hpot', 'hpot'],
+      purchasedItemIds: [],
+    });
+    expect(chooseShopAction(ctx, capped)).toEqual({ kind: 'buy', itemId: 'hpot' });
+  });
+
+  it('counts only potions towards the potion budget, not other purchases', () => {
+    const capped = { ...tuning, maxPotions: 1 };
+    const ctx = makeContext({
+      state: makeState({ lives: 1, gold: 60 }),
+      purchasedItemIds: ['cs', 'ch'],
+    });
+    expect(chooseShopAction(ctx, capped)).toEqual({ kind: 'buy', itemId: 'hpot' });
+  });
+
   it('returns null when every upgrade is already purchased', () => {
     const ctx = makeContext({
       state: makeState({ lives: 3, gold: 1000 }),

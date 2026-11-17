@@ -54,11 +54,11 @@ describe('ExpectedValueStrategy', () => {
     expect(strategy.chooseAction(makeContext())).toBeNull();
   });
 
-  it('returns null when only trap ads remain', () => {
+  it('solves the only trap on the board when nothing else can pass the turn', () => {
     const ctx = makeContext({
       ads: [makeAd({ message: 'Steal super awesome diamond pot from X' })],
     });
-    expect(strategy.chooseAction(ctx)).toBeNull();
+    expect(strategy.chooseAction(ctx)).toEqual({ kind: 'solve', adId: 'a1' });
   });
 
   it('returns the shop action even when there are no ads', () => {
@@ -81,21 +81,21 @@ describe('ExpectedValueStrategy', () => {
       expect(strategy.chooseAction(ctx)).toEqual({ kind: 'buy', itemId: 'hpot' });
     });
 
-    it('returns null on an all-trap board when it cannot afford to wait', () => {
+    it('solves a trap on an all-trap board when it cannot afford to wait', () => {
       const ctx = makeContext({
         state: makeState({ lives: 3, gold: 49 }),
         ads: [trap('t1'), trap('t2')],
       });
-      expect(strategy.chooseAction(ctx)).toBeNull();
+      expect(strategy.chooseAction(ctx)).toEqual({ kind: 'solve', adId: 't1' });
     });
 
-    it('waits instead of solving a negative expected value ad when it can afford a potion', () => {
-      const ctx = makeContext({ state: makeState({ lives: 3, gold: 350 }), ads: [badAd] });
+    it('waits instead of solving a negative expected value ad whenever a potion is affordable', () => {
+      const ctx = makeContext({ state: makeState({ lives: 3, gold: 50 }), ads: [badAd] });
       expect(waiter.chooseAction(ctx)).toEqual({ kind: 'buy', itemId: 'hpot' });
     });
 
-    it('solves the least bad ad when waiting would dip into the reserve', () => {
-      const ctx = makeContext({ state: makeState({ lives: 3, gold: 349 }), ads: [badAd] });
+    it('solves the least bad ad only when it cannot afford a potion', () => {
+      const ctx = makeContext({ state: makeState({ lives: 3, gold: 49 }), ads: [badAd] });
       expect(waiter.chooseAction(ctx)).toEqual({ kind: 'solve', adId: 'bad' });
     });
 
@@ -113,10 +113,66 @@ describe('ExpectedValueStrategy', () => {
         minSolveScore: 100,
       });
       const ad = makeAd({ adId: 'ok', probability: 'Sure thing', reward: 50 }); // expected value 42.5 - 22.5 = 20
-      const rich = makeContext({ state: makeState({ lives: 3, gold: 350 }), ads: [ad] });
+      const rich = makeContext({ state: makeState({ lives: 3, gold: 50 }), ads: [ad] });
       expect(picky.chooseAction(rich)).toEqual({ kind: 'buy', itemId: 'hpot' });
-      const poor = makeContext({ state: makeState({ lives: 3, gold: 349 }), ads: [ad] });
+      const poor = makeContext({ state: makeState({ lives: 3, gold: 49 }), ads: [ad] });
       expect(picky.chooseAction(poor)).toEqual({ kind: 'solve', adId: 'ok' });
+    });
+
+    it('cannot wait once the potion budget is spent, so it solves a trap instead', () => {
+      const capped = new ExpectedValueStrategy({
+        ...TEST_TUNING,
+        upgradePriority: [],
+        maxPotions: 1,
+      });
+      const ctx = makeContext({
+        state: makeState({ lives: 3, gold: 500 }),
+        ads: [trap('t1'), trap('t2')],
+        purchasedItemIds: ['hpot'],
+      });
+      expect(capped.chooseAction(ctx)).toEqual({ kind: 'solve', adId: 't1' });
+    });
+
+    it('still waits while the potion budget has room left', () => {
+      const capped = new ExpectedValueStrategy({
+        ...TEST_TUNING,
+        upgradePriority: [],
+        maxPotions: 2,
+      });
+      const ctx = makeContext({
+        state: makeState({ lives: 3, gold: 500 }),
+        ads: [trap('t1'), trap('t2')],
+        purchasedItemIds: ['hpot'],
+      });
+      expect(capped.chooseAction(ctx)).toEqual({ kind: 'buy', itemId: 'hpot' });
+    });
+
+    it('solves a trap as a last resort when there is no other way to pass the turn', () => {
+      // No upgrades left, no potion budget: stalling here would deadlock the run forever,
+      // because without an action the turn never advances and the board never refreshes.
+      const stuck = new ExpectedValueStrategy({
+        ...TEST_TUNING,
+        upgradePriority: [],
+        maxPotions: 0,
+      });
+      const ctx = makeContext({
+        state: makeState({ lives: 2, gold: 5000 }),
+        ads: [trap('t1'), trap('t2')],
+      });
+      expect(stuck.chooseAction(ctx)).toEqual({ kind: 'solve', adId: 't1' });
+    });
+
+    it('still prefers any non-trap ad over a trap as the last resort', () => {
+      const stuck = new ExpectedValueStrategy({
+        ...TEST_TUNING,
+        upgradePriority: [],
+        maxPotions: 0,
+      });
+      const ctx = makeContext({
+        state: makeState({ lives: 2, gold: 0 }),
+        ads: [trap('t1'), badAd],
+      });
+      expect(stuck.chooseAction(ctx)).toEqual({ kind: 'solve', adId: 'bad' });
     });
 
     it('cannot wait when the heal item is missing from the shop', () => {
@@ -124,7 +180,7 @@ describe('ExpectedValueStrategy', () => {
       const withBad = makeContext({ state: makeState({ gold: 500 }), shop, ads: [badAd] });
       expect(waiter.chooseAction(withBad)).toEqual({ kind: 'solve', adId: 'bad' });
       const onlyTraps = makeContext({ state: makeState({ gold: 60 }), shop, ads: [trap('t1')] });
-      expect(strategy.chooseAction(onlyTraps)).toBeNull();
+      expect(strategy.chooseAction(onlyTraps)).toEqual({ kind: 'solve', adId: 't1' });
     });
 
     it('keeps shop precedence over solving and over waiting', () => {

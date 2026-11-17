@@ -48,9 +48,13 @@ export function scoreAd(ad: Ad, tuning: Tuning): number {
   return p * ad.reward - (1 - p) * tuning.lifeValue;
 }
 
-export function rankAds(ads: readonly Ad[], tuning: Tuning): ScoredAd[] {
+/**
+ * Scores ads best first. Traps are excluded unless `includeTraps` is set, which the strategy uses
+ * only as a last resort, when solving a trap is the only move left that advances the turn.
+ */
+export function rankAds(ads: readonly Ad[], tuning: Tuning, includeTraps = false): ScoredAd[] {
   return ads
-    .filter((ad) => !isTrap(ad, tuning))
+    .filter((ad) => includeTraps || !isTrap(ad, tuning))
     .map((ad) => ({ ad, score: scoreAd(ad, tuning) }))
     .sort((a, b) => b.score - a.score || b.ad.reward - a.ad.reward);
 }

@@ -15,6 +15,8 @@ export type SolveRecord = {
   readonly reward: number;
   readonly success: boolean;
   readonly resultMessage: string;
+  /** Dragon level the attempt was made at, for measuring whether upgrades raise success rates. */
+  readonly level: number;
 };
 
 export type PurchaseRecord = {
@@ -31,13 +33,17 @@ export class RecordingApi implements DragonsApi {
 
   private readonly inner: DragonsApi;
   private readonly lastAds = new Map<string, Ad>();
+  /** Only `startGame` and a purchase change the level; a solve never does. */
+  private currentLevel = 0;
 
   constructor(inner: DragonsApi) {
     this.inner = inner;
   }
 
-  startGame(): Promise<GameState> {
-    return this.inner.startGame();
+  async startGame(): Promise<GameState> {
+    const state = await this.inner.startGame();
+    this.currentLevel = state.level;
+    return state;
   }
 
   async getMessages(gameId: string): Promise<RawAd[]> {
@@ -64,6 +70,7 @@ export class RecordingApi implements DragonsApi {
       reward: ad?.reward ?? 0,
       success: result.success,
       resultMessage: result.message,
+      level: this.currentLevel,
     });
     return result;
   }
@@ -77,6 +84,7 @@ export class RecordingApi implements DragonsApi {
   async buy(gameId: string, itemId: string): Promise<PurchaseResult> {
     const result = await this.inner.buy(gameId, itemId);
     this.purchases.push({ itemId, success: result.shoppingSuccess, level: result.level });
+    this.currentLevel = result.level;
     return result;
   }
 }

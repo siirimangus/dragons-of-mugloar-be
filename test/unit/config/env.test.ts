@@ -9,7 +9,6 @@ describe('loadConfig', () => {
       retryAttempts: 5,
       retryBaseDelayMs: 500,
       maxConsecutiveFailures: 5,
-      maxTurns: 1000,
       logLevel: 'info',
     });
   });
@@ -21,7 +20,6 @@ describe('loadConfig', () => {
       DRAGONS_RETRY_ATTEMPTS: '5',
       DRAGONS_RETRY_BASE_DELAY_MS: '0',
       DRAGONS_MAX_CONSECUTIVE_FAILURES: '2',
-      DRAGONS_MAX_TURNS: '50',
       LOG_LEVEL: 'debug',
     });
     expect(config).toEqual({
@@ -30,7 +28,6 @@ describe('loadConfig', () => {
       retryAttempts: 5,
       retryBaseDelayMs: 0,
       maxConsecutiveFailures: 2,
-      maxTurns: 50,
       logLevel: 'debug',
     });
   });
@@ -43,7 +40,7 @@ describe('loadConfig', () => {
     ['DRAGONS_RETRY_ATTEMPTS', '0'],
     ['DRAGONS_RETRY_ATTEMPTS', '11'],
     ['DRAGONS_RETRY_BASE_DELAY_MS', '-1'],
-    ['DRAGONS_MAX_TURNS', '0'],
+    ['DRAGONS_MAX_CONSECUTIVE_FAILURES', '0'],
     ['DRAGONS_API_BASE_URL', 'not a url'],
     ['DRAGONS_API_BASE_URL', 'ftp://example.com'],
     ['DRAGONS_API_BASE_URL', 'foo:bar'],
@@ -62,12 +59,12 @@ describe('loadConfig', () => {
   it('names every invalid variable in the error', () => {
     let error: unknown;
     try {
-      loadConfig({ DRAGONS_MAX_TURNS: '0', LOG_LEVEL: 'loud' });
+      loadConfig({ DRAGONS_RETRY_ATTEMPTS: '0', LOG_LEVEL: 'loud' });
     } catch (caught) {
       error = caught;
     }
     expect(error).toBeInstanceOf(ConfigError);
-    expect((error as ConfigError).message).toContain('DRAGONS_MAX_TURNS');
+    expect((error as ConfigError).message).toContain('DRAGONS_RETRY_ATTEMPTS');
     expect((error as ConfigError).message).toContain('LOG_LEVEL');
   });
 

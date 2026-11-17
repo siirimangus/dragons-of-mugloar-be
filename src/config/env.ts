@@ -7,7 +7,6 @@ export type AppConfig = {
   readonly retryAttempts: number;
   readonly retryBaseDelayMs: number;
   readonly maxConsecutiveFailures: number;
-  readonly maxTurns: number;
   readonly logLevel: LogLevel;
 };
 
@@ -26,7 +25,6 @@ const envSchema = z.object({
   DRAGONS_RETRY_ATTEMPTS: z.coerce.number().int().min(1).max(10).default(5),
   DRAGONS_RETRY_BASE_DELAY_MS: z.coerce.number().int().min(0).default(500),
   DRAGONS_MAX_CONSECUTIVE_FAILURES: z.coerce.number().int().min(1).default(5),
-  DRAGONS_MAX_TURNS: z.coerce.number().int().positive().default(1000),
   LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error', 'silent']).default('info'),
 });
 
@@ -53,7 +51,6 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     retryAttempts: values.DRAGONS_RETRY_ATTEMPTS,
     retryBaseDelayMs: values.DRAGONS_RETRY_BASE_DELAY_MS,
     maxConsecutiveFailures: values.DRAGONS_MAX_CONSECUTIVE_FAILURES,
-    maxTurns: values.DRAGONS_MAX_TURNS,
     logLevel: values.LOG_LEVEL,
   };
 }

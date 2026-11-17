@@ -16,6 +16,12 @@ describe('DEFAULT_TUNING', () => {
     expect(DEFAULT_TUNING.lifeValue).toBeGreaterThan(0);
   });
 
+  it('allows a finite, non-zero potion budget so a run both survives and ends', () => {
+    expect(DEFAULT_TUNING.maxPotions).toBeGreaterThan(0);
+    expect(Number.isFinite(DEFAULT_TUNING.maxPotions)).toBe(true);
+    expect(Number.isInteger(DEFAULT_TUNING.maxPotions)).toBe(true);
+  });
+
   it('has no stateful (global or sticky) trap patterns', () => {
     for (const pattern of DEFAULT_TUNING.trapPatterns) {
       expect(pattern.flags).not.toMatch(/[gy]/);

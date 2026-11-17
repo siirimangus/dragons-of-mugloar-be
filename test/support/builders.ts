@@ -31,5 +31,12 @@ export function makeAd(overrides: Partial<Ad> = {}): Ad {
 }
 
 export function makeContext(overrides: Partial<StrategyContext> = {}): StrategyContext {
-  return { state: makeState(), ads: [], shop: SHOP, attemptedItemIds: [], ...overrides };
+  return {
+    state: makeState(),
+    ads: [],
+    shop: SHOP,
+    attemptedItemIds: [],
+    purchasedItemIds: [],
+    ...overrides,
+  };
 }

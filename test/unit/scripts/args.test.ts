@@ -36,10 +36,11 @@ describe('numberArg', () => {
 describe('parseCalibrateArgs', () => {
   it('uses defaults when nothing is given', () => {
     const args = parseCalibrateArgs([]);
-    expect(args).toMatchObject({ games: 20, concurrency: 4, maxTurns: 200, target: 1000 });
+    expect(args).toMatchObject({ games: 20, concurrency: 4, target: 1000 });
     expect(args.priority).toBeUndefined();
     expect(args.lifeValue).toBeUndefined();
     expect(args.healThreshold).toBeUndefined();
+    expect(args.maxPotions).toBeUndefined();
   });
 
   it('parses valid values', () => {
@@ -48,24 +49,24 @@ describe('parseCalibrateArgs', () => {
       '3',
       '--concurrency',
       '2',
-      '--max-turns',
-      '60',
       '--target',
       '500',
       '--life-value',
       '100',
       '--heal-threshold',
       '1',
+      '--max-potions',
+      '7',
       '--priority',
       'cs,gas',
     ]);
     expect(args).toMatchObject({
       games: 3,
       concurrency: 2,
-      maxTurns: 60,
       target: 500,
       lifeValue: 100,
       healThreshold: 1,
+      maxPotions: 7,
       priority: ['cs', 'gas'],
     });
   });
@@ -78,7 +79,8 @@ describe('parseCalibrateArgs', () => {
     expect(() => parseCalibrateArgs(['--games', '0'])).toThrow('--games');
     expect(() => parseCalibrateArgs(['--games', 'x'])).toThrow('--games');
     expect(() => parseCalibrateArgs(['--concurrency', '1.5'])).toThrow('--concurrency');
-    expect(() => parseCalibrateArgs(['--max-turns', '-1'])).toThrow('--max-turns');
+    expect(() => parseCalibrateArgs(['--max-potions', '-1'])).toThrow('--max-potions');
+    expect(() => parseCalibrateArgs(['--max-potions', '1.5'])).toThrow('--max-potions');
     expect(() => parseCalibrateArgs(['--heal-threshold', '1.5'])).toThrow('--heal-threshold');
   });
 

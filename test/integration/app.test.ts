@@ -102,55 +102,70 @@ describe('createApp', () => {
     expect(requests.some((url) => url.includes('/messages'))).toBe(false);
   });
 
-  it('wires maxTurns through to the game loop', async () => {
+  it('plays through the game loop until lives run out, with no turn budget', async () => {
     const requests: string[] = [];
-    let turn = 0;
+    let lives = 3;
     const fetchFn: FetchFn = async (input, init) => {
       requests.push(`${init?.method ?? 'GET'} ${input}`);
       if (input.endsWith('/game/start')) return json(startBody());
       if (input.endsWith('/g1/shop')) return json([]);
       if (input.endsWith('/g1/messages')) return json([plainAd]);
       if (input.includes('/g1/solve/')) {
-        turn += 1;
+        lives -= 1;
         return json({
-          success: true,
-          lives: 3,
-          gold: turn * 100,
-          score: turn * 100,
+          success: false,
+          lives,
+          gold: 0,
+          score: 0,
           highScore: 0,
-          turn,
-          message: 'ok',
+          turn: 3 - lives,
+          message: 'failed',
         });
       }
       throw new Error(`unexpected request ${input}`);
     };
-    const app = createApp({
-      config: loadConfig({ ...base, DRAGONS_MAX_TURNS: '2' }),
-      logger: silentLogger,
-      fetch: fetchFn,
-    });
+    const app = createApp({ config: loadConfig(base), logger: silentLogger, fetch: fetchFn });
     const summary = await app.run();
-    expect(summary).toMatchObject({ endedBy: 'turn-limit', turns: 2 });
-    expect(requests.filter((r) => r.startsWith('POST') && r.includes('/solve/'))).toHaveLength(2);
+    expect(summary).toMatchObject({ endedBy: 'lives', turns: 3, failed: 3, finalLives: 0 });
+    expect(requests.filter((r) => r.startsWith('POST') && r.includes('/solve/'))).toHaveLength(3);
   });
 
   it('passes a custom tuning to the strategy', async () => {
     const requests: string[] = [];
     const fetchFn: FetchFn = async (input, init) => {
       requests.push(`${init?.method ?? 'GET'} ${input}`);
-      if (input.endsWith('/game/start')) return json(startBody());
-      if (input.endsWith('/g1/shop')) return json([]);
+      if (input.endsWith('/game/start')) return json(startBody({ gold: 100 }));
+      if (input.endsWith('/g1/shop')) {
+        return json([{ id: 'hpot', name: 'Healing potion', cost: 50 }]);
+      }
       if (input.endsWith('/g1/messages')) return json([plainAd]);
+      if (input.includes('/g1/shop/buy/')) {
+        return json({ shoppingSuccess: true, gold: 0, lives: 4, level: 0, turn: 1 });
+      }
+      if (input.includes('/g1/solve/')) {
+        return json({
+          success: false,
+          lives: 0,
+          gold: 0,
+          score: 0,
+          highScore: 0,
+          turn: 2,
+          message: 'dead',
+        });
+      }
       throw new Error(`unexpected request ${input}`);
     };
     const app = createApp({
-      config: loadConfig({ ...base, DRAGONS_MAX_CONSECUTIVE_FAILURES: '2' }),
+      config: loadConfig(base),
       logger: silentLogger,
       fetch: fetchFn,
-      tuning: { ...TEST_TUNING, trapPatterns: [/.*/] },
+      // Above any reachable score, so the strategy must wait with a potion. The default tuning
+      // would solve this ad (Piece of cake, reward 100) on the very first turn instead.
+      tuning: { ...TEST_TUNING, minSolveScore: Number.POSITIVE_INFINITY },
     });
-    await expect(app.run()).resolves.toMatchObject({ endedBy: 'stalled' });
-    expect(requests.some((r) => r.includes('/solve/'))).toBe(false);
+    await app.run();
+    const firstAction = requests.find((r) => r.startsWith('POST') && !r.includes('/game/start'));
+    expect(firstAction).toContain('/shop/buy/hpot');
   });
 
   it('wires retry attempts to the HTTP client', async () => {

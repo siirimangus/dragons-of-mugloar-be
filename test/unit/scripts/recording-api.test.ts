@@ -53,6 +53,7 @@ describe('RecordingApi', () => {
         reward: 120,
         success: false,
         resultMessage: 'nope',
+        level: 0,
       },
     ]);
   });
@@ -71,6 +72,18 @@ describe('RecordingApi', () => {
     await api.getShop('g');
     await api.getShop('g');
     expect(api.firstShop).toEqual(first);
+  });
+
+  it('records the dragon level each solve was attempted at', async () => {
+    // Solving never changes the level, so it is tracked from the start state and each purchase.
+    const api = new RecordingApi(fakeApi([[]]));
+    await api.startGame();
+    await api.getMessages('g');
+    await api.solve('g', 'ad-1');
+    await api.buy('g', 'cs');
+    await api.getMessages('g');
+    await api.solve('g', 'ad-1');
+    expect(api.solves.map((solve) => solve.level)).toEqual([0, 4]);
   });
 
   it('records purchases with their level', async () => {

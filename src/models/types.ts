@@ -57,9 +57,19 @@ export type StrategyContext = {
   readonly shop: readonly ShopItem[];
   /** Ids of shop items attempted in this game: attempted, never retried, whatever the outcome. */
   readonly attemptedItemIds: readonly string[];
+  /**
+   * Ids of shop items the API confirmed as bought. Unlike `attemptedItemIds` this counts only
+   * purchases that took effect, so a rejected buy does not consume a budget such as `maxPotions`.
+   */
+  readonly purchasedItemIds: readonly string[];
 };
 
-export type EndReason = 'lives' | 'turn-limit' | 'aborted' | 'stalled';
+/**
+ * How a run finished. A game has no turn budget: it plays until the dragon dies, the operator
+ * interrupts it, or no safe action is left. The finite potion budget (`Tuning.maxPotions`) is what
+ * guarantees `lives` is eventually reached.
+ */
+export type EndReason = 'lives' | 'aborted' | 'stalled';
 
 export type RunSummary = {
   readonly gameId: string;

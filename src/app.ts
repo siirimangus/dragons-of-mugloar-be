@@ -41,10 +41,7 @@ export function createApp(deps: AppDeps): App {
     api,
     strategy: new ExpectedValueStrategy(deps.tuning ?? DEFAULT_TUNING),
     logger,
-    options: {
-      maxConsecutiveFailures: config.maxConsecutiveFailures,
-      maxTurns: config.maxTurns,
-    },
+    options: { maxConsecutiveFailures: config.maxConsecutiveFailures },
   });
 
   return { run: (signal) => service.run(signal) };

@@ -16,11 +16,11 @@ export const SHOP_UPGRADE_IDS: readonly string[] = [
 export type CalibrateArgs = {
   readonly games: number;
   readonly concurrency: number;
-  readonly maxTurns: number;
   readonly target: number;
   readonly priority: string[] | undefined;
   readonly lifeValue: number | undefined;
   readonly healThreshold: number | undefined;
+  readonly maxPotions: number | undefined;
 };
 
 /** Parses an optional numeric flag; returns undefined when unset, throws a readable Error when invalid. */
@@ -61,20 +61,20 @@ export function parseCalibrateArgs(argv: readonly string[]): CalibrateArgs {
     options: {
       games: { type: 'string' },
       concurrency: { type: 'string' },
-      'max-turns': { type: 'string' },
       priority: { type: 'string' },
       'life-value': { type: 'string' },
       'heal-threshold': { type: 'string' },
+      'max-potions': { type: 'string' },
       target: { type: 'string' },
     },
   });
   return {
     games: numberArg('games', values.games, 1, true) ?? 20,
     concurrency: numberArg('concurrency', values.concurrency, 1, true) ?? 4,
-    maxTurns: numberArg('max-turns', values['max-turns'], 1, true) ?? 200,
     target: numberArg('target', values.target, 0) ?? 1000,
     priority: parsePriority(values.priority),
     lifeValue: numberArg('life-value', values['life-value'], 0),
     healThreshold: numberArg('heal-threshold', values['heal-threshold'], 0, true),
+    maxPotions: numberArg('max-potions', values['max-potions'], 0, true),
   };
 }

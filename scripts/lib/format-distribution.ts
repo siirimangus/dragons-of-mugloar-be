@@ -28,8 +28,14 @@ export function formatDistribution(reports: readonly GameReport[], target: numbe
       `mean=${stats.mean.toFixed(0)} max=${stats.max} ` +
       `share>=${target}: ${(stats.shareAtLeast * 100).toFixed(0)}%`,
   );
-  const count = (reason: string): number =>
-    summaries.filter((summary) => summary.endedBy === reason).length;
-  lines.push(`ended by lives=${count('lives')} turn-limit=${count('turn-limit')}`);
+  // Counted from the data rather than a fixed list, so a new EndReason cannot go unreported.
+  const byReason = new Map<string, number>();
+  for (const summary of summaries) {
+    byReason.set(summary.endedBy, (byReason.get(summary.endedBy) ?? 0) + 1);
+  }
+  const counts = [...byReason]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([reason, n]) => `${reason}=${n}`);
+  lines.push(`ended by ${counts.join(' ')}`);
   return lines;
 }
