@@ -22,6 +22,30 @@ describe('FakeDragonsApi', () => {
     expect(await a.getMessages('fake-game')).toEqual(await b.getMessages('fake-game'));
   });
 
+  it('scales rewards without disturbing the random stream', async () => {
+    const plain = new FakeDragonsApi({ seed: 9 });
+    const scaled = new FakeDragonsApi({ seed: 9, rewardScale: 3 });
+    await plain.startGame();
+    await scaled.startGame();
+    const plainAds = await plain.getMessages('fake-game');
+    const scaledAds = await scaled.getMessages('fake-game');
+    // Same ads in the same order, rewards tripled: a scaled run stays comparable to an unscaled
+    // one on the same seed, which is what makes paired tuning experiments meaningful.
+    expect(scaledAds.map((ad) => ad.adId)).toEqual(plainAds.map((ad) => ad.adId));
+    expect(scaledAds.map((ad) => ad.reward)).toEqual(
+      plainAds.map((ad) => Math.round(ad.reward * 3)),
+    );
+  });
+
+  it('pays out the scaled reward, not the base one', async () => {
+    const api = new FakeDragonsApi({ seed: 1, successRateOverride: 1, rewardScale: 3 });
+    await api.startGame();
+    const ad = (await api.getMessages('fake-game'))[0];
+    if (!ad) throw new Error('expected at least one ad');
+    const result = await api.solve('fake-game', trueId(ad));
+    expect(result.gold).toBe(ad.reward);
+  });
+
   it('awards gold and score for a successful solve and advances the turn', async () => {
     const api = new FakeDragonsApi({ seed: 1, successRateOverride: 1 });
     await api.startGame();

@@ -43,6 +43,13 @@ export type FakeOptions = {
   readonly trapBoardEvery?: number;
   /** Initial gold (default 0). */
   readonly startGold?: number;
+  /**
+   * Multiplies every ad's reward (default 1). The live game pays about 2.8x what this simulator
+   * does for the ads a bot actually attempts, while shop prices are identical in both, so the
+   * default economy is poorer than the real one. Scaling makes `lifeValue` experiments comparable
+   * to live, because `scoreAd` is invariant under scaling reward and `lifeValue` together.
+   */
+  readonly rewardScale?: number;
 };
 
 /**
@@ -89,6 +96,7 @@ export class FakeDragonsApi implements DragonsApi {
   private readonly outcomeRandom: () => number;
   private readonly overrideRate: number | undefined;
   private readonly trapBoardEvery: number | undefined;
+  private readonly rewardScale: number;
   private refreshCount = 0;
   private readonly shop: readonly ShopItem[] = [
     { id: 'hpot', name: 'Healing potion', cost: 50 },
@@ -108,6 +116,7 @@ export class FakeDragonsApi implements DragonsApi {
     this.idRandom = mulberry32((seed ^ 0x51ed270b) >>> 0);
     this.overrideRate = options.successRateOverride;
     this.trapBoardEvery = options.trapBoardEvery;
+    this.rewardScale = options.rewardScale ?? 1;
     this.state = {
       gameId: 'fake-game',
       lives: options.lives ?? 3,
@@ -246,9 +255,12 @@ export class FakeDragonsApi implements DragonsApi {
     const message = isTrap
       ? `Steal super awesome diamond pot from Person ${adId}`
       : `Help Person ${adId} to fix their wagon`;
-    const reward = isTrap
+    // Scaling is applied after drawing, so the random stream is identical at every scale and
+    // runs on the same seed stay comparable.
+    const baseReward = isTrap
       ? 150 + Math.floor(this.adRandom() * 30)
       : 5 + Math.floor(this.adRandom() * 75);
+    const reward = Math.round(baseReward * this.rewardScale);
     const roll = this.adRandom();
     const encrypted: EncryptionKind | null = roll < 0.2 ? 1 : roll < 0.4 ? 2 : null;
     const encode = (value: string): string =>
